@@ -10,6 +10,23 @@ void randomdata(func* f) { // assumes BITSPERCHUNK == 64
 	}
 }
 
+void randomvars(func *f, dim max) {
+
+	register dim i, j;
+	register var v;
+	srand(SEED);
+
+	for (i = 0; i < f->m; i++) {
+		random:
+		v = rand() % max;
+		for (j = 0; j < i; j++)
+			if (f->vars[j] == v)
+			goto random;
+		f->vars[i] = v;
+	}
+}
+
+
 void print(func* f, chunk *s) {
 
 	register dim i, j, k;
@@ -84,22 +101,11 @@ void shared2least(func *f, chunk* m) {
 		o[x / BITSPERCHUNK] ^= 1ULL << (x % BITSPERCHUNK);
 		a[y / BITSPERCHUNK] ^= 1ULL << (y % BITSPERCHUNK);
 	}
-}
 
-void randomvars(func *f, dim max) {
-
-	register dim i, j;
-	register var v;
-	srand(SEED);
-
-	for (i = 0; i < f->m; i++) {
-		random:
-		v = rand() % max;
-		for (j = 0; j < i; j++)
-			if (f->vars[j] == v)
-			goto random;
-		f->vars[i] = v;
-	}
+	free(s);
+	free(z);
+	free(a);
+	free(o);
 }
 
 int main(int argc, char *argv[]) {

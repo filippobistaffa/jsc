@@ -90,10 +90,10 @@ void shared2least(func *f, chunk* m) {
 	while (memcmp(o, z, f->c * sizeof(chunk))) {
 		i = x = y = 0;
 		while (!o[i++]) x += BITSPERCHUNK;
-		x += __builtin_ffsll(o[i - 1]) - 1;
+		x += __builtin_ctzll(o[i - 1]);
 		i = 0;
 		while (!a[i++]) y += BITSPERCHUNK;
-		y += __builtin_ffsll(a[i - 1]) - 1;
+		y += __builtin_ctzll(a[i - 1]);
 		t = f->vars[x];
 		f->vars[x] = f->vars[y];
 		f->vars[y] = t;

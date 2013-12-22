@@ -13,10 +13,9 @@
 
 #define CEIL(X, Y) (1 + (((X) - 1) / (Y)))
 #define SET(C, I) ((C)[(I) / BITSPERCHUNK] |= 1ULL << ((I) % BITSPERCHUNK))
-#define SWAP(V, I, J) \
-({ if ((((V)[(I) / BITSPERCHUNK] >> ((I) % BITSPERCHUNK)) ^ ((V)[(J) / BITSPERCHUNK] >> ((J) % BITSPERCHUNK))) & 1) { \
-	(V)[(I) / BITSPERCHUNK] ^= (1ULL << ((I) % BITSPERCHUNK)); \
-	(V)[(J) / BITSPERCHUNK] ^= (1ULL << ((J) % BITSPERCHUNK)); }})
+#define SWAP(V, I, J) ({ \
+	uint64_t d = (((V)[(I) / BITSPERCHUNK] >> ((I) % BITSPERCHUNK)) ^ ((V)[(J) / BITSPERCHUNK] >> ((J) % BITSPERCHUNK))) & 1; \
+	(V)[(I) / BITSPERCHUNK] ^= d << ((I) % BITSPERCHUNK); (V)[(J) / BITSPERCHUNK] ^= d << ((J) % BITSPERCHUNK); })
 
 typedef uint64_t chunk;
 typedef uint16_t var;

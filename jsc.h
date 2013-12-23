@@ -19,7 +19,7 @@
 
 typedef uint64_t chunk;
 typedef uint16_t var;
-typedef uint16_t dim;
+typedef uint32_t dim;
 
 typedef struct {
 	dim n, m, c, s;

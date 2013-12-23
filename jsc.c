@@ -72,15 +72,15 @@ void sharedmasks(func f1, chunk* s1, func f2, chunk* s2) {
 
 void shared2least(func f, chunk* m) {
 
-	register dim x, y, i, c = CEIL(f.s, BITSPERCHUNK);
+	register dim x, y, i;
 	register var t;
 	chunk* s = (chunk *)calloc(f.c, sizeof(chunk));
 	chunk* z = (chunk *)calloc(f.c, sizeof(chunk));
 	chunk* a = (chunk *)malloc(sizeof(chunk) * f.c);
 	chunk* o = (chunk *)malloc(sizeof(chunk) * f.c);
 
-	for (i = 0; i < c - 1; i++) s[i] = ~(0ULL);
-	s[c - 1] = (1ULL << (f.s % BITSPERCHUNK)) - 1;
+	for (i = 0; i < f.s / BITSPERCHUNK; i++) s[i] = ~(0ULL);
+	if (f.s % BITSPERCHUNK) s[f.s / BITSPERCHUNK] = (1ULL << (f.s % BITSPERCHUNK)) - 1;
 
 	for (i = 0; i < f.c; i++) {
 		a[i] = s[i] & ~m[i];

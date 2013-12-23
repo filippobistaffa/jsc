@@ -5,8 +5,8 @@ void randomdata(func f) { // assumes BITSPERCHUNK == 64
 	register dim i, j;
 
 	for (i = 0; i < f.n; i++) {
-		for (j = 0; j < f.m / BITSPERCHUNK; j++) f.data[i * f.c + j] = genrand64_int64();
-		if (f.m % BITSPERCHUNK) f.data[i * f.c + f.c - 1] = genrand64_int64() & ((1ULL << (f.m % BITSPERCHUNK)) - 1);
+		for (j = 0; j < f.m / BITSPERCHUNK; j++) f.data[j * f.n + i] = genrand64_int64();
+		if (f.m % BITSPERCHUNK) f.data[(f.c - 1) * f.n + i] = genrand64_int64() & ((1ULL << (f.m % BITSPERCHUNK)) - 1);
 	}
 }
 
@@ -48,9 +48,9 @@ void print(func f, chunk *s) {
 	for (i = 0; i < f.n; i++) {
 		for (j = 0; j < f.m / BITSPERCHUNK; j++)
 			for (k = 0; k < BITSPERCHUNK; k++)
-				printf("%2zu", (f.data[i * f.c + j] >> k) & 1);
+				printf("%2zu", (f.data[j * f.n + i] >> k) & 1);
 		for (k = 0; k < f.m % BITSPERCHUNK; k++)
-			printf("%2zu", (f.data[i * f.c + f.c - 1] >> k) & 1);
+			printf("%2zu", (f.data[(f.c - 1) * f.n + i] >> k) & 1);
 		printf("\n");
 	}
 }
@@ -97,7 +97,7 @@ void shared2least(func f, chunk* m) {
 		t = f.vars[x];
 		f.vars[x] = f.vars[y];
 		f.vars[y] = t;
-		for (i = 0; i < f.n; i++) SWAP(f.data + i * f.c, x, y);
+		for (i = 0; i < f.n; i++) SWAP(f.data + i, x, y, f.n);
 		o[x / BITSPERCHUNK] ^= 1ULL << (x % BITSPERCHUNK);
 		a[y / BITSPERCHUNK] ^= 1ULL << (y % BITSPERCHUNK);
 	}

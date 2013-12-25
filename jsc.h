@@ -10,6 +10,13 @@
 #define SEED 0
 #define BITSPERCHUNK 64
 #define SHAREDSIZE 49152
+#define THREADSPERBLOCK 32
+
+#define N1 100
+#define M1 70
+#define C1 CEIL(M1, BITSPERCHUNK)
+
+#define UNROLL 2 // MIN(C1, C2)
 
 #define CEIL(X, Y) (1 + (((X) - 1) / (Y)))
 #define SET(C, I) ((C)[(I) / BITSPERCHUNK] |= 1ULL << ((I) % BITSPERCHUNK))
@@ -22,8 +29,8 @@ typedef uint16_t var;
 typedef uint32_t dim;
 
 typedef struct {
-	dim n, m, c, s;
-	chunk* data;
+	dim s, m, n, c;
+	chunk *data, *mask;
 	var* vars;
 } func;
 

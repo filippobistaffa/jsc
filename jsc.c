@@ -102,13 +102,15 @@ void merge(func f, chunk *a, chunk *b, size_t m, size_t n) {
 	free(c);
 }
 
-void arraymerge(func f, size_t *in, uint8_t t) {
+void arraymerge(func f) {
 
+	uint8_t t = CPUTHREADS;
+	size_t in[t + 1];
 	register dim i;
 
 	while (t > 1) {
 		for (i = 0; i < t; i++) in[i] = i * f.n / t; in[t] = f.n;
-		#pragma omp parallel for private(i)
+		#pragma omp parallel for private(i) schedule(dynamic)
 		for (i = 0; i < t; i += 2)
 		merge(f, f.data + in[i] * f.c, f.data + in[i + 1] * f.c, in[i + 1] - in[i], in[i + 2] - in[i + 1]);
 		t /= 2;
@@ -117,14 +119,13 @@ void arraymerge(func f, size_t *in, uint8_t t) {
 
 void pqsort(func f) {
 
-	uint8_t t = omp_get_max_threads();
-	size_t in[t + 1];
+	size_t in[CPUTHREADS + 1];
 	register dim i;
 
-	for (i = 0; i < t; i++) in[i] = i * f.n / t; in[t] = f.n;
-	#pragma omp parallel for private(i)
-	for (i = 0; i < t; i++) qsort_r(f.data + in[i] * f.c, in[i + 1] - in[i], sizeof(chunk) * f.c, compare, &f);
-	if (t > 1) arraymerge(f, in, t);
+	for (i = 0; i < CPUTHREADS; i++) in[i] = i * f.n / CPUTHREADS; in[CPUTHREADS] = f.n;
+	#pragma omp parallel for private(i) schedule(dynamic)
+	for (i = 0; i < CPUTHREADS; i++) qsort_r(f.data + in[i] * f.c, in[i + 1] - in[i], sizeof(chunk) * f.c, compare, &f);
+	if (CPUTHREADS > 1) arraymerge(f);
 }
 
 void shared2least(func f, chunk* m) {
@@ -155,7 +156,7 @@ void shared2least(func f, chunk* m) {
 		t = f.vars[x];
 		f.vars[x] = f.vars[y];
 		f.vars[y] = t;
-		#pragma omp parallel for private(i)
+		#pragma omp parallel for private(i) schedule(dynamic)
 		for (i = 0; i < f.n; i++) SWAPRM(f.data + i * f.c, x, y);
 		o[x / BITSPERCHUNK] ^= 1ULL << (x % BITSPERCHUNK);
 		a[y / BITSPERCHUNK] ^= 1ULL << (y % BITSPERCHUNK);

@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <limits.h>
 #include "marsenne.h"
 #include "crc32.h"
 
@@ -16,6 +17,7 @@
 #define SHAREDSIZE 49152
 #define THREADSPERBLOCK 32
 #define CPUTHREADS 8
+#define MAXVAR 100
 
 #define N1 100
 #define M1 70
@@ -39,9 +41,8 @@ typedef uint16_t var;
 typedef uint32_t dim;
 
 typedef struct {
+	chunk *data, mask;
 	dim n, m, c, s;
-	chunk *data;
-	chunk mask;
 	var *vars;
 } func;
 

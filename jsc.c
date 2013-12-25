@@ -14,7 +14,6 @@ void randomvars(func f, dim max) {
 
 	register dim i, j;
 	register var v;
-	srand(SEED);
 
 	for (i = 0; i < f.m; i++) {
 		random:
@@ -55,17 +54,18 @@ void print(func f, chunk *s) {
 	}
 }
 
-void sharedmasks(func f1, chunk* s1, func f2, chunk* s2) {
+void sharedmasks(func *f1, chunk* s1, func *f2, chunk* s2) {
 
 	register dim i, j;
+	f1->s = f2->s = 0;
 
-	for (i = 0; i < f1.m; i++)
-		for (j = 0; j < f2.m; j++)
-			if (f1.vars[i] == f2.vars[j]) {
+	for (i = 0; i < f1->m; i++)
+		for (j = 0; j < f2->m; j++)
+			if (f1->vars[i] == f2->vars[j]) {
 				SET(s1, i);
 				SET(s2, j);
-				(f1.s)++;
-				(f2.s)++;
+				(f1->s)++;
+				(f2->s)++;
 				break;
 			}
 }
@@ -76,7 +76,7 @@ inline int compare(const void* a, const void* b, void* c)
 	register func f = *(func *)c;
 	register uint8_t cmp = memcmp(a, b, sizeof(chunk) * (f.s / BITSPERCHUNK));
 
-	if (cmp || !(f.s % BITSPERCHUNK)) return cmp;
+	if (cmp || !f.mask) return cmp;
 	else {
 		register chunk x = *(chunk *)a & f.mask;
 		register chunk y = *(chunk *)b & f.mask;
@@ -145,6 +145,8 @@ void shared2least(func f, chunk* m) {
 		o[i] = m[i] & ~s[i];
 	}
 
+	memcpy(m, s, sizeof(chunk) * f.c);
+
 	while (memcmp(o, z, f.c * sizeof(chunk))) {
 		i = x = y = 0;
 		while (!o[i++]) x += BITSPERCHUNK;
@@ -168,42 +170,81 @@ void shared2least(func f, chunk* m) {
 	free(o);
 }
 
+void reordershared(func f, var *vars) {
+
+	chunk s[CEIL(f.s, BITSPERCHUNK)];
+	register dim i, j;
+	var v[MAXVAR];
+
+	for (i = 0; i < f.s; i++) v[vars[i]] = i;
+	#pragma omp parallel for private(i, s)
+	for (i = 0; i < f.n; i++) {
+		memset(s, 0, sizeof(chunk) * CEIL(f.s, BITSPERCHUNK));
+		for (j = 0; j < f.s; j++) if ((f.data[i * f.c + j / BITSPERCHUNK] >> (j % BITSPERCHUNK)) & 1) SET(s, v[f.vars[j]]);
+		memcpy(f.data + i * f.c, s, sizeof(chunk) * (f.s / BITSPERCHUNK));
+		if (f.mask) {
+			f.data[i * f.c + f.s / BITSPERCHUNK] &= ~f.mask;
+			f.data[i * f.c + f.s / BITSPERCHUNK] |= s[f.s / BITSPERCHUNK];
+		}
+	}
+	memcpy(f.vars, vars, sizeof(var) * f.s);
+}
+
 int main(int argc, char *argv[]) {
 
+	srand(SEED);
 	init_genrand64(SEED);
+	func f1, f2;
 
-	func f;
-	f.n = 1e8;
-	f.m = 70;
-	f.c = CEIL(f.m, BITSPERCHUNK);
-	size_t size = sizeof(chunk) * f.n * f.c;
-	f.vars = malloc(sizeof(var) * f.m);
-	f.data = calloc(1, size);
+	f1.n = 5e7;
+	f1.m = 70;
+	f2.n = 1e8;
+	f2.m = 80;
 
-	if (!f.data) {
-		printf("Size %zu bytes too large!\n", size);
+	f1.c = CEIL(f1.m, BITSPERCHUNK);
+	f2.c = CEIL(f2.m, BITSPERCHUNK);
+	f1.vars = malloc(sizeof(var) * f1.m);
+	f2.vars = malloc(sizeof(var) * f2.m);
+	f1.data = calloc(1, sizeof(chunk) * f1.n * f1.c);
+	f2.data = calloc(1, sizeof(chunk) * f2.n * f2.c);
+
+	if (!f1.data || !f1.data) {
+		printf("Not enough memory!\n");
 		return 1;
 	}
 
-	randomvars(f, 100);
-	randomdata(f);
+	randomvars(f1, MAXVAR);
+	randomdata(f1);
+	randomvars(f2, MAXVAR);
+	randomdata(f2);
 
-	//chunk c[2] = {1561500000000000000, 28};
-	//f.s = __builtin_popcountll(c[0]) + __builtin_popcountll(c[1]);
-	chunk c[2] = {1231, 0};
-	f.s = __builtin_popcountll(c[0]) + __builtin_popcountll(c[1]);
-	f.mask = (1ULL << (f.s % BITSPERCHUNK)) - 1;
-	//print(f, c);
+	chunk *c1 = calloc(f1.c, sizeof(chunk));
+	chunk *c2 = calloc(f2.c, sizeof(chunk));
+	sharedmasks(&f1, c1, &f2, c2);
+	f1.mask = f2.mask = (1ULL << (f1.s % BITSPERCHUNK)) - 1;
+
+	//print(f1, c1);
+	//print(f2, c2);
 	puts("Shift...");
-	shared2least(f, c);
+	shared2least(f1, c1);
+	shared2least(f2, c2);
+	reordershared(f2, f1.vars);
+	//print(f1, c1);
+	//print(f2, c2);
 	puts("Sort...");
-	qsort_r(f.data, f.n, sizeof(chunk) * f.c, compare, &f);
-	//pqsort(f);
-	//print(f, NULL);
+	//qsort_r(f1.data, f1.n, sizeof(chunk) * f1.c, compare, &f1);
+	//qsort_r(f2.data, f2.n, sizeof(chunk) * f2.c, compare, &f2);
+	pqsort(f1);
+	pqsort(f2);
+	//print(f1, c1);
+	//print(f2, c2);
 	puts("Checksum...");
-	printf("Checksum = %u (size = %zu bytes)\n", crc32(f.data, size), size);
-	free(f.vars);
-	free(f.data); 
+	printf("Checksum 1 = %u (size = %zu bytes)\n", crc32(f1.data, sizeof(chunk) * f1.n * f1.c), sizeof(chunk) * f1.n * f1.c);
+	printf("Checksum 2 = %u (size = %zu bytes)\n", crc32(f2.data, sizeof(chunk) * f2.n * f2.c), sizeof(chunk) * f2.n * f2.c);
 
+	free(f1.vars);
+	free(f1.data);
+	free(f2.vars);
+	free(f2.data);
 	return 0;
 }

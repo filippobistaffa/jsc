@@ -5,8 +5,8 @@ void randomdata(func f) { // assumes BITSPERCHUNK == 64
 	register dim i, j;
 
 	for (i = 0; i < f.n; i++) {
-		for (j = 0; j < f.m / BITSPERCHUNK; j++) f.data[j * f.n + i] = genrand64_int64();
-		if (f.m % BITSPERCHUNK) f.data[(f.c - 1) * f.n + i] = genrand64_int64() & ((1ULL << (f.m % BITSPERCHUNK)) - 1);
+		for (j = 0; j < f.m / BITSPERCHUNK; j++) f.data[i * f.c + j] = genrand64_int64();
+		if (f.m % BITSPERCHUNK) f.data[i * f.c + f.c - 1] = genrand64_int64() & ((1ULL << (f.m % BITSPERCHUNK)) - 1);
 	}
 }
 
@@ -48,9 +48,9 @@ void print(func f, chunk *s) {
 	for (i = 0; i < f.n; i++) {
 		for (j = 0; j < f.m / BITSPERCHUNK; j++)
 			for (k = 0; k < BITSPERCHUNK; k++)
-				printf("%2zu", (f.data[j * f.n + i] >> k) & 1);
+				printf("%2zu", (f.data[i * f.c + j] >> k) & 1);
 		for (k = 0; k < f.m % BITSPERCHUNK; k++)
-			printf("%2zu", (f.data[(f.c - 1) * f.n + i] >> k) & 1);
+			printf("%2zu", (f.data[i * f.c + f.c - 1] >> k) & 1);
 		printf("\n");
 	}
 }
@@ -70,6 +70,63 @@ void sharedmasks(func f1, chunk* s1, func f2, chunk* s2) {
 			}
 }
 
+__attribute__((always_inline))
+inline int compare(const void* a, const void* b, void* c)
+{
+	register func f = *(func *)c;
+	register uint8_t cmp = memcmp(a, b, sizeof(chunk) * (f.s / BITSPERCHUNK));
+
+	if (cmp || !(f.s % BITSPERCHUNK)) return cmp;
+	else {
+		register chunk x = *(chunk *)a & f.mask;
+		register chunk y = *(chunk *)b & f.mask;
+		if (x == y) return 0;
+		else if (x < y) return -1;
+		else return 1;
+	}
+}
+
+void merge(func f, chunk *a, chunk *b, size_t m, size_t n) {
+
+	register size_t i = 0, j = 0, k = 0;
+	register size_t s = m + n;
+	chunk *c = malloc(sizeof(chunk) * f.c * s);
+
+	while (i < m && j < n)
+	if (compare(a + f.c * i, b + f.c * j, &f) <= 0) memcpy(c + f.c * k++, a + f.c * i++, sizeof(chunk) * f.c);
+	else memcpy(c + f.c * k++, b + f.c * j++, sizeof(chunk) * f.c);
+
+	if (i < m) memcpy(c + f.c * k, a + f.c * i, sizeof(chunk) * f.c * (m - i));
+	else memcpy(c + f.c * k, b + f.c * j, sizeof(chunk) * f.c * (n - j));
+	memcpy(a, c, sizeof(chunk) * f.c * s);
+	free(c);
+}
+
+void arraymerge(func f, size_t *in, uint8_t t) {
+
+	register dim i;
+
+	while (t > 1) {
+		for (i = 0; i < t; i++) in[i] = i * f.n / t; in[t] = f.n;
+		#pragma omp parallel for private(i)
+		for (i = 0; i < t; i += 2)
+		merge(f, f.data + in[i] * f.c, f.data + in[i + 1] * f.c, in[i + 1] - in[i], in[i + 2] - in[i + 1]);
+		t /= 2;
+	}
+}
+
+void pqsort(func f) {
+
+	uint8_t t = omp_get_max_threads();
+	size_t in[t + 1];
+	register dim i;
+
+	for (i = 0; i < t; i++) in[i] = i * f.n / t; in[t] = f.n;
+	#pragma omp parallel for private(i)
+	for (i = 0; i < t; i++) qsort_r(f.data + in[i] * f.c, in[i + 1] - in[i], sizeof(chunk) * f.c, compare, &f);
+	if (t > 1) arraymerge(f, in, t);
+}
+
 void shared2least(func f, chunk* m) {
 
 	register dim x, y, i;
@@ -80,7 +137,7 @@ void shared2least(func f, chunk* m) {
 	chunk* o = (chunk *)malloc(sizeof(chunk) * f.c);
 
 	for (i = 0; i < f.s / BITSPERCHUNK; i++) s[i] = ~(0ULL);
-	if (f.s % BITSPERCHUNK) s[f.s / BITSPERCHUNK] = (1ULL << (f.s % BITSPERCHUNK)) - 1;
+	if (f.s % BITSPERCHUNK) s[f.s / BITSPERCHUNK] = f.mask;
 
 	for (i = 0; i < f.c; i++) {
 		a[i] = s[i] & ~m[i];
@@ -94,10 +151,12 @@ void shared2least(func f, chunk* m) {
 		i = 0;
 		while (!a[i++]) y += BITSPERCHUNK;
 		y += __builtin_ctzll(a[i - 1]);
+		//printf("switched %u with %u\n", x, y);
 		t = f.vars[x];
 		f.vars[x] = f.vars[y];
 		f.vars[y] = t;
-		for (i = 0; i < f.n; i++) SWAP(f.data + i, x, y, f.n);
+		#pragma omp parallel for private(i)
+		for (i = 0; i < f.n; i++) SWAPRM(f.data + i * f.c, x, y);
 		o[x / BITSPERCHUNK] ^= 1ULL << (x % BITSPERCHUNK);
 		a[y / BITSPERCHUNK] ^= 1ULL << (y % BITSPERCHUNK);
 	}
@@ -113,23 +172,37 @@ int main(int argc, char *argv[]) {
 	init_genrand64(SEED);
 
 	func f;
-	f.n = 20;
+	f.n = 1e8;
 	f.m = 70;
 	f.c = CEIL(f.m, BITSPERCHUNK);
+	size_t size = sizeof(chunk) * f.n * f.c;
 	f.vars = malloc(sizeof(var) * f.m);
-	f.data = calloc(f.n * f.c, sizeof(chunk));
+	f.data = calloc(1, size);
+
+	if (!f.data) {
+		printf("Size %zu bytes too large!\n", size);
+		return 1;
+	}
 
 	randomvars(f, 100);
 	randomdata(f);
 
-	chunk c[2] = {1561564548000000000, 10};
+	//chunk c[2] = {1561500000000000000, 28};
+	//f.s = __builtin_popcountll(c[0]) + __builtin_popcountll(c[1]);
+	chunk c[2] = {1231, 0};
 	f.s = __builtin_popcountll(c[0]) + __builtin_popcountll(c[1]);
-	print(f, c);
+	f.mask = (1ULL << (f.s % BITSPERCHUNK)) - 1;
+	//print(f, c);
+	puts("Shift...");
 	shared2least(f, c);
-	print(f, NULL);
-
+	puts("Sort...");
+	qsort_r(f.data, f.n, sizeof(chunk) * f.c, compare, &f);
+	//pqsort(f);
+	//print(f, NULL);
+	puts("Checksum...");
+	printf("Checksum = %u (size = %zu bytes)\n", crc32(f.data, size), size);
 	free(f.vars);
-	free(f.data);
+	free(f.data); 
 
 	return 0;
 }

@@ -216,14 +216,16 @@ inline void parallelmove(chunk *data, dim c, dim exp) {
 
 void rowtocolumnmajor(func f) {
 
-	register dim j, i = 0, nt = f.n, n = __builtin_popcountll(f.n);
-	dim count[n];
+	if (f.c > 1) {
+		register dim j, i = 0, nt = f.n, n = __builtin_popcountll(f.n);
+		dim count[n];
 
-	while (nt) nt ^= 1ULL << (count[n - 1 - i++] = __builtin_ctzll(nt));
-	puts("Parallel moves...");
-	for (i = 0, j = 0; i < n; i++, j += 1ULL << count[i - 1]) parallelmove(f.data + j * f.c, f.c, count[i]);
-	puts("Single moves...");
-	for (i = 1, j = 1ULL << count[0]; i < n; i++, j += 1ULL << count[i - 1]) move(f.data, f.c, j, 1ULL << count[i]);
+		while (nt) nt ^= 1ULL << (count[n - 1 - i++] = __builtin_ctzll(nt));
+		puts("Parallel moves...");
+		for (i = 0, j = 0; i < n; i++, j += 1ULL << count[i - 1]) parallelmove(f.data + j * f.c, f.c, count[i]);
+		puts("Single moves...");
+		for (i = 1, j = 1ULL << count[0]; i < n; i++, j += 1ULL << count[i - 1]) move(f.data, f.c, j, 1ULL << count[i]);
+	}
 }
 
 int main(int argc, char *argv[]) {

@@ -190,6 +190,42 @@ void reordershared(func f, var *vars) {
 	memcpy(f.vars, vars, sizeof(var) * f.s);
 }
 
+__attribute__((always_inline))
+inline void move(chunk *data, dim c, dim n1, dim n2) {
+
+	register dim i;
+	chunk *t = malloc(sizeof(chunk) * n2);
+
+	for (i = 0; i < c - 1; i++) {
+		memcpy(t, data + i * (n1 + n2) + (c - i) * n1, sizeof(chunk) * n2);
+		memmove(data + (i + 1) * (n1 + n2), data + i * (n1 + n2) + n1, sizeof(chunk) * (c - i - 1) * n1);
+		memcpy(data + i * (n1 + n2) + n1, t, sizeof(chunk) * n2);
+	}
+
+	free(t);
+}
+
+__attribute__((always_inline))
+inline void parallelmove(chunk *data, dim c, dim exp) {
+
+	register dim i, j, k, h = 1ULL << (exp - 1);
+	for (i = 0, k = 1; i < exp; i++, k <<= 1, h >>= 1)
+	#pragma omp parallel for private(j)
+	for (j = 0; j < h; j++) move(data + 2 * j * c * k, c, k, k);
+}
+
+void rowtocolumnmajor(func f) {
+
+	register dim j, i = 0, nt = f.n, n = __builtin_popcountll(f.n);
+	dim count[n];
+
+	while (nt) nt ^= 1ULL << (count[n - 1 - i++] = __builtin_ctzll(nt));
+	puts("Parallel moves...");
+	for (i = 0, j = 0; i < n; i++, j += 1ULL << count[i - 1]) parallelmove(f.data + j * f.c, f.c, count[i]);
+	puts("Single moves...");
+	for (i = 1, j = 1ULL << count[0]; i < n; i++, j += 1ULL << count[i - 1]) move(f.data, f.c, j, 1ULL << count[i]);
+}
+
 int main(int argc, char *argv[]) {
 
 	srand(SEED);

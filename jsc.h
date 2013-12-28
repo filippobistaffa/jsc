@@ -9,8 +9,6 @@
 #include <stdint.h>
 #include <string.h>
 #include <limits.h>
-#include "marsenne.h"
-#include "crc32.h"
 
 #define SEED 0
 #define BITSPERCHUNK 64
@@ -45,5 +43,9 @@ typedef struct {
 	dim n, m, c, s;
 	var *vars;
 } func;
+
+#include "marsenne.h"
+#include "preproc.h"
+#include "crc32.h"
 
 #endif /* JSC_H_ */

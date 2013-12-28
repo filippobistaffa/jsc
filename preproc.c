@@ -159,7 +159,7 @@ inline void parallelmove(chunk *data, dim c, dim exp) {
 	for (j = 0; j < h; j++) move(data + 2 * j * c * k, c, k, k);
 }
 
-void rowtocolumnmajor(func f) {
+void row2columnmajor(func f) {
 
 	if (f.c > 1) {
 		register dim j, i = 0, nt = f.n, n = __builtin_popcountll(f.n);

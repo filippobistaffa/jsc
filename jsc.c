@@ -10,21 +10,31 @@ void randomdata(func f) { // assumes BITSPERCHUNK == 64
 	}
 }
 
-void randomvars(func f, dim max) {
+void randomdata_cm(func f) { // assumes BITSPERCHUNK == 64
 
+	register dim i, j;
+
+	for (i = 0; i < f.n; i++) {
+		for (j = 0; j < f.m / BITSPERCHUNK; j++) f.data[j * f.n + i] = genrand64_int64();
+		if (f.m % BITSPERCHUNK) f.data[(f.m / BITSPERCHUNK) * f.n + i] = genrand64_int64() & ((1ULL << (f.m % BITSPERCHUNK)) - 1);
+	}
+}
+
+void randomvars(func f) {
+
+	assert(MAXVAR > f.m);
 	register dim i, j;
 	register var v;
 
 	for (i = 0; i < f.m; i++) {
 		random:
-		v = rand() % max;
+		v = rand() % MAXVAR;
 		for (j = 0; j < i; j++)
 			if (f.vars[j] == v)
 			goto random;
 		f.vars[i] = v;
 	}
 }
-
 
 void print(func f, chunk *s) {
 

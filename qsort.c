@@ -23,9 +23,9 @@
 #include "jsc.h"
 
 #define _SWAP(A, B, N, C) do { \
-	chunk *__a = (A), *__b = (B); register dim i; \
+	register chunk *__a = (A), *__b = (B); register dim i; \
 	for (i = 0; i < (C); i++) { \
-		chunk __tmp = *(__a + i * (N)); \
+		register chunk __tmp = *(__a + i * (N)); \
 		*(__a + i * (N)) = *(__b + i * (N)); \
 		*(__b + i * (N)) = __tmp; \
 	} \
@@ -35,10 +35,10 @@
 // This particular magic number was chosen to work best on a Sun 4/260.
 #define MAX_THRESH 4
 
-/* 
+/*
 The next 4 #defines implement a very fast in-line stack abstraction.
 The stack needs log (total_elements) entries (we could even subtract
-log(MAX_THRESH)).   
+log(MAX_THRESH)).
 */
 #define STACK_SIZE	(64 * sizeof(size_t))
 #define PUSH(low, high)	((void) ((top->lo = (low)), (top->hi = (high)), ++top))

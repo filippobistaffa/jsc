@@ -1,9 +1,9 @@
 #ifndef COLUMNMAJOR_H_
 #define COLUMNMAJOR_H_
 
-#define GET(V, I, N) ((V)[((I) / BITSPERCHUNK) * (N)] >> ((I) % BITSPERCHUNK))
+#define GET(V, I, N) ((V)[((I) / BITSPERCHUNK) * (N)] >> ((I) % BITSPERCHUNK) & 1)
 #define SWAP(V, I, J, N) do { \
-        register chunk d = (GET(V, I, N) ^ GET(V, J, N)) & 1; \
+        register chunk d = GET(V, I, N) ^ GET(V, J, N); \
         (V)[((I) / BITSPERCHUNK) * (N)] ^= d << ((I) % BITSPERCHUNK); (V)[((J) / BITSPERCHUNK) * (N)] ^= d << ((J) % BITSPERCHUNK); } while (0)
 
 #include "qsort.h"

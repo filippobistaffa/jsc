@@ -57,7 +57,7 @@ inline int compare_cm(chunk* a, chunk* b, func f) {
 	register dim i;
 	register char cmp;
 	for (i = 0; i < f.s / BITSPERCHUNK; i++) if ((cmp = CMP(a[i * f.n], b[i * f.n]))) return cmp;
-	if (f.mask) return CMP(f.mask & a[(f.s / BITSPERCHUNK) * f.n], b[(f.s / BITSPERCHUNK) * f.n]);
+	if (f.mask) return CMP(f.mask & a[(f.s / BITSPERCHUNK) * f.n], f.mask & b[(f.s / BITSPERCHUNK) * f.n]);
 	else return 0;
 }
 

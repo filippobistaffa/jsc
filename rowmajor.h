@@ -1,9 +1,9 @@
 #ifndef ROWMAJOR_H_
 #define ROWMAJOR_H_
 
-#define GET(V, I) ((V)[(I) / BITSPERCHUNK] >> ((I) % BITSPERCHUNK))
+#define GET(V, I) ((V)[(I) / BITSPERCHUNK] >> ((I) % BITSPERCHUNK) & 1)
 #define SWAP(V, I, J) do { \
-	register chunk d = (GET(V, I) ^ GET(V, J)) & 1; \
+	register chunk d = GET(V, I) ^ GET(V, J); \
 	(V)[(I) / BITSPERCHUNK] ^= d << ((I) % BITSPERCHUNK); (V)[(J) / BITSPERCHUNK] ^= d << ((J) % BITSPERCHUNK); } while (0)
 
 inline int compare(const void* a, const void* b, void* c);

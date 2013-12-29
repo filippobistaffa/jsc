@@ -10,7 +10,7 @@
 #include <string.h>
 #include <assert.h>
 
-#define SEED 0
+#define SEED 10
 #define BITSPERCHUNK 64
 #define SHAREDSIZE 49152
 #define THREADSPERBLOCK 32
@@ -33,9 +33,14 @@ typedef struct {
 	var *vars;
 } func;
 
+#ifdef ROWMAJOR
+#include "rowmajor.h"
+#else
+#include "columnmajor.h"
+#endif
+
 #include "marsenne.h"
-#include "preproc.h"
-#include "qsort.h"
+#include "common.h"
 #include "crc32.h"
 
 #endif /* JSC_H_ */

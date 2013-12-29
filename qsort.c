@@ -22,7 +22,7 @@
 
 #include "jsc.h"
 
-#define SWAP(A, B, N, C) do { \
+#define _SWAP(A, B, N, C) do { \
 	chunk *__a = (A), *__b = (B); register dim i; \
 	for (i = 0; i < (C); i++) { \
 		chunk __tmp = *(__a + i * (N)); \
@@ -111,10 +111,10 @@ void qsort_cm(func f) {
 
 			chunk *mid = lo + ((hi - lo) >> 1);
 
-			if (compare_cm(mid, lo, f) < 0) SWAP(mid, lo, f.n, f.c);
-			if (compare_cm(hi, mid, f) < 0) SWAP(mid, hi, f.n, f.c);
+			if (compare_cm(mid, lo, f) < 0) _SWAP(mid, lo, f.n, f.c);
+			if (compare_cm(hi, mid, f) < 0) _SWAP(mid, hi, f.n, f.c);
 			else goto jump_over;
-			if (compare_cm(mid, lo, f) < 0) SWAP(mid, lo, f.n, f.c);
+			if (compare_cm(mid, lo, f) < 0) _SWAP(mid, lo, f.n, f.c);
 			jump_over:;
 
 			left_ptr = lo + 1;
@@ -128,7 +128,7 @@ void qsort_cm(func f) {
 				while (compare_cm(mid, right_ptr, f) < 0) right_ptr--;
 
 				if (left_ptr < right_ptr) {
-					SWAP(left_ptr, right_ptr, f.n, f.c);
+					_SWAP(left_ptr, right_ptr, f.n, f.c);
 					if (mid == left_ptr) mid = right_ptr;
 					else if (mid == right_ptr) mid = left_ptr;
 					left_ptr++;
@@ -186,7 +186,7 @@ void qsort_cm(func f) {
 		for (run_ptr = tmp_ptr + 1; run_ptr <= thresh; run_ptr++)
 			if (compare_cm(run_ptr, tmp_ptr, f) < 0) tmp_ptr = run_ptr;
 
-		if (tmp_ptr != base_ptr) SWAP(tmp_ptr, base_ptr, f.n, f.c);
+		if (tmp_ptr != base_ptr) _SWAP(tmp_ptr, base_ptr, f.n, f.c);
 
 		// Insertion sort, running from left-hand-side up to right-hand-side.
 		run_ptr = base_ptr + 1; // current element (first of unordered)

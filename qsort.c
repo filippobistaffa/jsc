@@ -85,7 +85,7 @@ inline int compare_cm(chunk* a, chunk* b, func f) {
       smaller partition.  This *guarantees* no more than log (f.n)
       stack size is needed (actually O(1) in this case)!  */
 
-void qsort_cm(func f) {
+void sort(func f) {
 
 	chunk *base_ptr = f.data;
 	const size_t max_thresh = MAX_THRESH;

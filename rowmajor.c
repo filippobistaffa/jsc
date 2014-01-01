@@ -85,7 +85,7 @@ void arraymerge(func f) {
 	}
 }
 
-void pqsort(func f) {
+void sort(func f) {
 
 	size_t in[CPUTHREADS + 1];
 	register dim i;
@@ -157,8 +157,6 @@ void reordershared(func f, var *vars) {
 	memcpy(f.vars, vars, sizeof(var) * f.s);
 }
 
-
-
 dim uniquecombinations(func f) {
 
 	register dim i, u = 1;
@@ -169,5 +167,3 @@ dim uniquecombinations(func f) {
 
 	return u;
 }
-
-

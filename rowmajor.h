@@ -12,6 +12,6 @@ void shared2least(func f, chunk* m);
 dim uniquecombinations(func f);
 void print(func f, chunk *s);
 void randomdata(func f);
-void pqsort(func f);
+void sort(func f);
 
 #endif  /* ROWMAJOR_H_ */

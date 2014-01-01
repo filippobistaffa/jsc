@@ -10,6 +10,7 @@
 
 void reordershared(func f, var *vars);
 void shared2least(func f, chunk* m);
+void histogram(func f, dim *h);
 dim uniquecombinations(func f);
 void print(func f, chunk *s);
 void randomdata(func f);

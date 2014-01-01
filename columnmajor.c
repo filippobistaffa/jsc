@@ -111,3 +111,16 @@ dim uniquecombinations(func f) {
 
 	return u;
 }
+
+void histogram(func f, dim *h) {
+
+	register dim i, j, k;
+	h[0] = 1;
+	
+	for (i = 1, k = 0; i < f.n; i++) {
+		for (j = 0; j < f.s / BITSPERCHUNK; j++) if (f.data[j * f.n + i] != f.data[j * f.n + i - 1]) { k++; goto next; }
+		if (f.mask & (f.data[(f.s / BITSPERCHUNK) * f.n + i] ^ f.data[(f.s / BITSPERCHUNK) * f.n + i - 1])) k++;
+		next:
+		h[k]++;
+	}
+}

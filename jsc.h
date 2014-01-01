@@ -9,6 +9,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <assert.h>
+#include <sys/time.h>
 
 #define SEED 10
 #define BITSPERCHUNK 64

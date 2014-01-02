@@ -40,6 +40,48 @@ void print(func f, chunk *s) {
 
 void shared2least(func f, chunk* m) {
 
+	register dim x, y, i, n = 0;
+	register var t;
+	chunk* s = (chunk *)calloc(f.c, sizeof(chunk));
+	chunk* a = (chunk *)malloc(sizeof(chunk) * f.c);
+	chunk* o = (chunk *)malloc(sizeof(chunk) * f.c);
+
+	for (i = 0; i < f.s / BITSPERCHUNK; i++) s[i] = ~(0ULL);
+	if (f.s % BITSPERCHUNK) s[f.s / BITSPERCHUNK] = f.mask;
+
+	for (i = 0; i < f.c; i++) {
+		a[i] = s[i] & ~m[i];
+		o[i] = m[i] & ~s[i];
+		n += __builtin_popcountll(o[i]);
+	}
+
+	memcpy(m, s, sizeof(chunk) * f.c);
+
+	do {
+		i = x = y = 0;
+		while (!o[i++]) x += BITSPERCHUNK;
+		x += __builtin_ctzll(o[i - 1]);
+		i = 0;
+		while (!a[i++]) y += BITSPERCHUNK;
+		y += __builtin_ctzll(a[i - 1]);
+		t = f.vars[x];
+		f.vars[x] = f.vars[y];
+		f.vars[y] = t;
+		#pragma omp parallel for private(i)
+		for (i = 0; i < f.n; i++) SWAP(f.data + i, x, y, f.n);
+		o[x / BITSPERCHUNK] ^= 1ULL << (x % BITSPERCHUNK);
+		a[y / BITSPERCHUNK] ^= 1ULL << (y % BITSPERCHUNK);
+	} while (--n);
+
+	free(s);
+	free(a);
+	free(o);
+}
+
+/*
+
+void shared2least(func f, chunk* m) {
+
 	register dim x, y, i;
 	register var t;
 	chunk* s = (chunk *)calloc(f.c, sizeof(chunk));
@@ -78,6 +120,8 @@ void shared2least(func f, chunk* m) {
 	free(a);
 	free(o);
 }
+
+*/
 
 void reordershared(func f, var *vars) {
 

@@ -42,9 +42,8 @@ void shared2least(func f, chunk* m) {
 
 	register dim x, y, i, n = 0;
 	register var t;
-	chunk* s = (chunk *)calloc(f.c, sizeof(chunk));
-	chunk* a = (chunk *)malloc(sizeof(chunk) * f.c);
-	chunk* o = (chunk *)malloc(sizeof(chunk) * f.c);
+	chunk s[f.c], a[f.c], o[f.c];
+	memset(s, 0, sizeof(chunk) * f.c);
 
 	for (i = 0; i < f.s / BITSPERCHUNK; i++) s[i] = ~(0ULL);
 	if (f.s % BITSPERCHUNK) s[f.s / BITSPERCHUNK] = f.mask;
@@ -72,10 +71,6 @@ void shared2least(func f, chunk* m) {
 		o[x / BITSPERCHUNK] ^= 1ULL << (x % BITSPERCHUNK);
 		a[y / BITSPERCHUNK] ^= 1ULL << (y % BITSPERCHUNK);
 	} while (--n);
-
-	free(s);
-	free(a);
-	free(o);
 }
 
 /*

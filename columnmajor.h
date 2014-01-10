@@ -8,11 +8,34 @@
 
 #include "qsort.h"
 
+#ifdef __cplusplus
+extern "C"
+#endif
 void reordershared(func f, var *vars);
+
+#ifdef __cplusplus
+extern "C"
+#endif
 void shared2least(func f, chunk* m);
+
+#ifdef __cplusplus
+extern "C"
+#endif
 void histogram(func f, dim *h);
+
+#ifdef __cplusplus
+extern "C"
+#endif
 dim uniquecombinations(func f);
+
+#ifdef __cplusplus
+extern "C"
+#endif
 void print(func f, chunk *s);
+
+#ifdef __cplusplus
+extern "C"
+#endif
 void randomdata(func f);
 
 #endif  /* COLUMNMAJOR_H_ */

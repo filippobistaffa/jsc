@@ -14,7 +14,7 @@ void print(func f, chunk *s) {
 
 	register dim i, j, k;
 
-	/*for (i = 0; i < f.m; i++) {
+	for (i = 0; i < f.m; i++) {
 		if (i & 1) printf("\033[1m%2u\033[0m", i);
 		else printf("%2u", i);
 	}
@@ -26,7 +26,7 @@ void print(func f, chunk *s) {
 		else printf("%2u", f.vars[i]);
 		if (i & 1) printf("\033[0m");
 	}
-	printf("\n");*/
+	printf("\n");
 
 	for (i = 0; i < f.n; i++) {
 		for (j = 0; j < f.m / BITSPERCHUNK; j++)
@@ -36,7 +36,6 @@ void print(func f, chunk *s) {
 			printf("%1zu", (f.data[(f.m / BITSPERCHUNK) * f.n + i] >> k) & 1);
 		printf("\n");
 	}
-	puts("");
 }
 
 void shared2least(func f, chunk* m) {

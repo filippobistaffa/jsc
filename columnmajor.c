@@ -14,7 +14,7 @@ void print(func f, chunk *s) {
 
 	register dim i, j, k;
 
-	for (i = 0; i < f.m; i++) {
+	/*for (i = 0; i < f.m; i++) {
 		if (i & 1) printf("\033[1m%2u\033[0m", i);
 		else printf("%2u", i);
 	}
@@ -26,16 +26,17 @@ void print(func f, chunk *s) {
 		else printf("%2u", f.vars[i]);
 		if (i & 1) printf("\033[0m");
 	}
-	printf("\n");
+	printf("\n");*/
 
 	for (i = 0; i < f.n; i++) {
 		for (j = 0; j < f.m / BITSPERCHUNK; j++)
 			for (k = 0; k < BITSPERCHUNK; k++)
-				printf("%2zu", (f.data[j * f.n + i] >> k) & 1);
+				printf("%1zu", (f.data[j * f.n + i] >> k) & 1);
 		for (k = 0; k < f.m % BITSPERCHUNK; k++)
-			printf("%2zu", (f.data[(f.m / BITSPERCHUNK) * f.n + i] >> k) & 1);
+			printf("%1zu", (f.data[(f.m / BITSPERCHUNK) * f.n + i] >> k) & 1);
 		printf("\n");
 	}
+	puts("");
 }
 
 void shared2least(func f, chunk* m) {
@@ -151,15 +152,115 @@ dim uniquecombinations(func f) {
 	return u;
 }
 
-void histogram(func f, dim *h) {
+void histogram(func f) {
 
 	register dim i, j, k;
-	h[0] = 1;
-	
+	f.h[0] = 1;
+
 	for (i = 1, k = 0; i < f.n; i++) {
 		for (j = 0; j < f.s / BITSPERCHUNK; j++) if (f.data[j * f.n + i] != f.data[j * f.n + i - 1]) { k++; goto next; }
 		if (f.mask & (f.data[(f.s / BITSPERCHUNK) * f.n + i] ^ f.data[(f.s / BITSPERCHUNK) * f.n + i - 1])) k++;
 		next:
-		h[k]++;
+		f.h[k]++;
 	}
+}
+
+void markmatchingrows(func f1, func f2, dim *n1, dim *n2, dim *hn) {
+
+	register dim i1, i2, j1, j2;
+	i1 = i2 = j1 = j2 = *n1 = *n2 = *hn = 0;
+	register char cmp;
+
+	while (i1 != f1.n && i2 != f2.n) {
+		if ((cmp = compare(f1.data + i1, f2.data + i2, f1, f2)))
+			if (cmp < 0) i1 += f1.h[j1++];
+			else i2 += f2.h[j2++];
+		else {
+			//for (i = i1; i < i1 + f1.h[j1]; i++) SET(f1.rmask, i);
+			//for (i = i2; i < i2 + f2.h[j2]; i++) SET(f2.rmask, i);
+			SET(f1.hmask, j1);
+			SET(f2.hmask, j2);
+			(*n1) += f1.h[j1];
+			(*n2) += f2.h[j2];
+			i1 += f1.h[j1++];
+			i2 += f2.h[j2++];
+			(*hn)++;
+		}
+	}
+}
+
+void copymatchingrows(func *f1, func *f2, dim n1, dim n2, dim hn) {
+
+        register dim i, i1, i2, i3, i4, j1, j2, j3, j4;
+        i1 = i2 = i3 = i4 = j1 = j2 = j3 = j4 = 0;
+	register char cmp;
+
+        chunk *d1 = malloc(sizeof(chunk) * n1 * f1->c);
+        chunk *d2 = malloc(sizeof(chunk) * n2 * f2->c);
+        dim *h1 = malloc(sizeof(dim) * hn);
+        dim *h2 = malloc(sizeof(dim) * hn);
+
+        while (i1 != f1->n && i2 != f2->n)
+                if ((cmp = (f1->hmask[j1 / BITSPERCHUNK] >> (j1 % BITSPERCHUNK) & 1)) & f2->hmask[j2 / BITSPERCHUNK] >> (j2 % BITSPERCHUNK) & 1) {
+                	for (i = 0; i < f1->c; i++) memcpy(d1 + i3 + i * n1, f1->data + i1 + i * f1->n, sizeof(chunk) * f1->h[j1]); 
+                	for (i = 0; i < f2->c; i++) memcpy(d2 + i4 + i * n2, f2->data + i2 + i * f2->n, sizeof(chunk) * f2->h[j2]); 
+                	h1[j3++] = f1->h[j1];
+                	h2[j4++] = f2->h[j2];
+                        i1 += f1->h[j1];
+                        i2 += f2->h[j2];
+                        i3 += f1->h[j1++];
+                        i4 += f2->h[j2++];
+		}
+                else
+                        if (cmp) i2 += f2->h[j2++];
+                        else i1 += f1->h[j1++];
+
+	free(f1->data); f1->data = d1;
+	free(f2->data); f2->data = d2;
+	free(f1->h); f1->h = h1;
+	free(f2->h); f2->h = h2;
+	f1->hn = f2->hn = hn;
+	f1->n = n1;
+	f2->n = n2;
+}
+
+void removenonmatchingrows(func *f1, func *f2) {
+
+	register dim i, i1, i2, j, j1, j2;
+	i1 = i2 = j1 = j2 = 0;
+	register char cmp;
+	register func *f;
+	register int k;
+
+	while (i1 != f1->n && i2 != f2->n)
+		if ((cmp = compare(f1->data + i1, f2->data + i2, *f1, *f2))) {
+			if (cmp < 0) f = f1, i = i1, j = j1;
+			else f = f2, i = i2, j = j2;
+			for (k = f->c - 1; k >= 0; k--)
+			memmove(f->data + i + k * f->n, f->data + i + k * f->n + f->h[j], sizeof(chunk) * ((f->c - k) * (f->n - f->h[j]) - i));
+			//printf("%u %u\n", i1, i2);
+			//for (k = 0; k < f->c; k++) {
+			//	memmove(f->data + i + (f->c - k - 1) * f->n, f->data + i + (f->c - k - 1) * f->n + f->h[j],
+			//	sizeof(chunk) * (k * (f->n - f->h[j]) + f->n - i - f->h[j]));
+			//	sizeof(chunk) * ((k + 1) * (f->n - f->h[j]) - i));
+			//}
+			f->n -= f->h[j];
+			memmove(f->h + j, f->h + j + 1, sizeof(dim) * (f->hn - j - 1));
+			(f->hn)--;
+		}
+		else {
+			i1 += f1->h[j1++];
+			i2 += f2->h[j2++];
+		}
+
+	if (i1 != f1->n) f = f1, i = i1, j = j1;
+	else f = f2, i = i2, j = j2;
+	for (k = f->c - 2; k >= 0; k--)
+	memmove(f->data + i + k * f->n, f->data + (k + 1) * f->n, sizeof(chunk) * i * (f->c - k - 1));
+	f->hn = j;
+	f->n = i;
+	f1->data = realloc(f1->data, sizeof(chunk) * f1->n * f1->c);
+	f2->data = realloc(f2->data, sizeof(chunk) * f2->n * f2->c);
+	f1->h = realloc(f1->h, sizeof(dim) * f1->hn);
+	f2->h = realloc(f2->h, sizeof(dim) * f2->hn);
 }

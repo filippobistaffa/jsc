@@ -80,13 +80,19 @@ int main(int argc, char *argv[]) {
 	printf("Checksum 2 = %u (size = %zu bytes)\n", crc32(f2.data, sizeof(chunk) * f2.n * f2.c), sizeof(chunk) * f2.n * f2.c);
 	printf("Checksum Histogram 2 = %u (size = %zu bytes)\n", crc32(f2.h, sizeof(dim) * f2.hn), sizeof(dim) * f2.hn);
 
-	f1.rmask = calloc(CEIL(f1.n, BITSPERCHUNK), sizeof(chunk));
+	printf("Matching Rows... ");
+	fflush(stdout);
+	gettimeofday(&t1, NULL);
+	//f1.rmask = calloc(CEIL(f1.n, BITSPERCHUNK), sizeof(chunk));
+	//f2.rmask = calloc(CEIL(f2.n, BITSPERCHUNK), sizeof(chunk));
 	f1.hmask = calloc(CEIL(f1.hn, BITSPERCHUNK), sizeof(chunk));
-	f2.rmask = calloc(CEIL(f2.n, BITSPERCHUNK), sizeof(chunk));
 	f2.hmask = calloc(CEIL(f2.hn, BITSPERCHUNK), sizeof(chunk));
-	sharedrows(f1, f2);
-	//transpose(f1.data, f1.n, f1.c);
-	//transpose(f2.data, f2.n, f2.c);
+	dim n1, n2, hn;
+	markmatchingrows(f1, f2, &n1, &n2, &hn);
+	//removenonmatchingrows(&f1, &f2);
+	copymatchingrows(&f1, &f2, n1, n2, hn);
+	gettimeofday(&t2, NULL);
+	printf("%f seconds\n", (double)(t2.tv_usec - t1.tv_usec) / 1e6 + t2.tv_sec - t1.tv_sec);
 
 	puts("Checksum...");
 	printf("Checksum 1 = %u (size = %zu bytes)\n", crc32(f1.data, sizeof(chunk) * f1.n * f1.c), sizeof(chunk) * f1.n * f1.c);

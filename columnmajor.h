@@ -11,6 +11,21 @@
 #ifdef __cplusplus
 extern "C"
 #endif
+void markmatchingrows(func f1, func f2, dim *n1, dim *n2, dim *hn);
+
+#ifdef __cplusplus
+extern "C"
+#endif
+void copymatchingrows(func *f1, func *f2, dim n1, dim n2, dim hn); // Fast, but not in-place
+
+#ifdef __cplusplus
+extern "C"
+#endif
+void removenonmatchingrows(func *f1, func *f2); // Very slow, but in-place
+
+#ifdef __cplusplus
+extern "C"
+#endif
 void reordershared(func f, var *vars);
 
 #ifdef __cplusplus
@@ -21,7 +36,7 @@ void shared2least(func f, chunk* m);
 #ifdef __cplusplus
 extern "C"
 #endif
-void histogram(func f, dim *h);
+void histogram(func f);
 
 #ifdef __cplusplus
 extern "C"

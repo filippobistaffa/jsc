@@ -4,6 +4,11 @@
 #define SET(V, I) ((V)[(I) / BITSPERCHUNK] |= 1ULL << ((I) % BITSPERCHUNK)) // Row-major SET
 #define CMP(X, Y) ((X) == (Y) ? 0 : ((X) > (Y) ? 1 : -1))
 
+#define GETC(V, I, N) ((V)[((I) / BITSPERCHUNK) * (N)] >> ((I) % BITSPERCHUNK) & 1)
+#define GETR(V, I) ((V)[(I) / BITSPERCHUNK] >> ((I) % BITSPERCHUNK) & 1)
+#define GETMACRO(_1, _2, _3, NAME, ...) NAME
+#define GET(...) GETMACRO(__VA_ARGS__, GETC, GETR)(__VA_ARGS__)
+
 #ifdef __cplusplus
 extern "C"
 #endif

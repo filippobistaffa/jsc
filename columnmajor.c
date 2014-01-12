@@ -170,7 +170,7 @@ void markmatchingrows(func f1, func f2, dim *n1, dim *n2, dim *hn) {
 	i1 = i2 = j1 = j2 = *n1 = *n2 = *hn = 0;
 	register char cmp;
 
-	while (i1 != f1.n && i2 != f2.n) {
+	while (i1 != f1.n && i2 != f2.n)
 		if ((cmp = compare(f1.data + i1, f2.data + i2, f1, f2)))
 			if (cmp < 0) i1 += f1.h[j1++];
 			else i2 += f2.h[j2++];
@@ -185,7 +185,6 @@ void markmatchingrows(func f1, func f2, dim *n1, dim *n2, dim *hn) {
 			i2 += f2.h[j2++];
 			(*hn)++;
 		}
-	}
 }
 
 void copymatchingrows(func *f1, func *f2, dim n1, dim n2, dim hn) {
@@ -200,9 +199,11 @@ void copymatchingrows(func *f1, func *f2, dim n1, dim n2, dim hn) {
         dim *h2 = malloc(sizeof(dim) * hn);
 
         while (i1 != f1->n && i2 != f2->n)
-                if ((cmp = (f1->hmask[j1 / BITSPERCHUNK] >> (j1 % BITSPERCHUNK) & 1)) & f2->hmask[j2 / BITSPERCHUNK] >> (j2 % BITSPERCHUNK) & 1) {
-                	for (i = 0; i < f1->c; i++) memcpy(d1 + i3 + i * n1, f1->data + i1 + i * f1->n, sizeof(chunk) * f1->h[j1]); 
-                	for (i = 0; i < f2->c; i++) memcpy(d2 + i4 + i * n2, f2->data + i2 + i * f2->n, sizeof(chunk) * f2->h[j2]); 
+                if ((cmp = GET(f1->hmask, j1)) & GET(f2->hmask, j2)) {
+                	for (i = 0; i < f1->c; i++)
+                	memcpy(d1 + i3 + i * n1, f1->data + i1 + i * f1->n, sizeof(chunk) * f1->h[j1]); 
+                	for (i = 0; i < f2->c; i++)
+                	memcpy(d2 + i4 + i * n2, f2->data + i2 + i * f2->n, sizeof(chunk) * f2->h[j2]); 
                 	h1[j3++] = f1->h[j1];
                 	h2[j4++] = f2->h[j2];
                         i1 += f1->h[j1];

@@ -29,8 +29,8 @@ typedef uint16_t var;
 typedef uint32_t dim;
 
 typedef struct {
-	chunk *data, mask;
-	dim n, m, c, s;
+	chunk *data, mask, *rmask, *hmask;
+	dim n, m, c, s, *h, hn;
 	var *vars;
 } func;
 

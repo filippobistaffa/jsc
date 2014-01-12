@@ -52,12 +52,12 @@ typedef struct {
 } stack_node;
 
 __attribute__((always_inline))
-inline int compare_cm(chunk* a, chunk* b, func f) {
+inline int compare_cm(chunk* a, chunk* b, func f, func g) {
 
 	register dim i;
 	register char cmp;
-	for (i = 0; i < f.s / BITSPERCHUNK; i++) if ((cmp = CMP(a[i * f.n], b[i * f.n]))) return cmp;
-	if (f.mask) return CMP(f.mask & a[(f.s / BITSPERCHUNK) * f.n], f.mask & b[(f.s / BITSPERCHUNK) * f.n]);
+	for (i = 0; i < f.s / BITSPERCHUNK; i++) if ((cmp = CMP(a[i * f.n], b[i * g.n]))) return cmp;
+	if (f.mask) return CMP(f.mask & a[(f.s / BITSPERCHUNK) * f.n], f.mask & b[(f.s / BITSPERCHUNK) * g.n]);
 	else return 0;
 }
 
@@ -111,10 +111,10 @@ void sort(func f) {
 
 			chunk *mid = lo + ((hi - lo) >> 1);
 
-			if (compare_cm(mid, lo, f) < 0) _SWAP(mid, lo, f.n, f.c);
-			if (compare_cm(hi, mid, f) < 0) _SWAP(mid, hi, f.n, f.c);
+			if (compare_cm(mid, lo, f, f) < 0) _SWAP(mid, lo, f.n, f.c);
+			if (compare_cm(hi, mid, f, f) < 0) _SWAP(mid, hi, f.n, f.c);
 			else goto jump_over;
-			if (compare_cm(mid, lo, f) < 0) _SWAP(mid, lo, f.n, f.c);
+			if (compare_cm(mid, lo, f, f) < 0) _SWAP(mid, lo, f.n, f.c);
 			jump_over:;
 
 			left_ptr = lo + 1;
@@ -124,8 +124,8 @@ void sort(func f) {
 			Gotta like those tight inner loops! They are the main reason
 			that this algorithm runs much faster than others. */
 			do {
-				while (compare_cm(left_ptr, mid, f) < 0) left_ptr++;
-				while (compare_cm(mid, right_ptr, f) < 0) right_ptr--;
+				while (compare_cm(left_ptr, mid, f, f) < 0) left_ptr++;
+				while (compare_cm(mid, right_ptr, f, f) < 0) right_ptr--;
 
 				if (left_ptr < right_ptr) {
 					_SWAP(left_ptr, right_ptr, f.n, f.c);
@@ -184,7 +184,7 @@ void sort(func f) {
 		and the operation speeds up insertion sort's inner loop. */
 
 		for (run_ptr = tmp_ptr + 1; run_ptr <= thresh; run_ptr++)
-			if (compare_cm(run_ptr, tmp_ptr, f) < 0) tmp_ptr = run_ptr;
+			if (compare_cm(run_ptr, tmp_ptr, f, f) < 0) tmp_ptr = run_ptr;
 
 		if (tmp_ptr != base_ptr) _SWAP(tmp_ptr, base_ptr, f.n, f.c);
 
@@ -194,7 +194,7 @@ void sort(func f) {
 		while ((run_ptr += 1) <= end_ptr) {
 
 			tmp_ptr = run_ptr - 1;
-			while (compare_cm(run_ptr, tmp_ptr, f) < 0) tmp_ptr--;
+			while (compare_cm(run_ptr, tmp_ptr, f, f) < 0) tmp_ptr--;
 			tmp_ptr++; // current element's final position
 
 			if (tmp_ptr != run_ptr) {
@@ -207,4 +207,66 @@ void sort(func f) {
 			}
 		}
 	}
+}
+
+void sharedrows(func f1, func f2) {
+
+	register dim i, i1, i2, j1, j2;
+	i1 = i2 = j1 = j2 = 0;
+	register char cmp;
+
+	while (i1 != f1.n && i2 != f2.n) {
+		if ((cmp = compare_cm(f1.data + i1, f2.data + i2, f1, f2)))
+			if (cmp < 0) i1 += f1.h[j1++];
+			else i2 += f2.h[j2++];
+		else {
+			for (i = i1; i < i1 + f1.h[j1]; i++) SET(f1.rmask, i);
+			for (i = i2; i < i2 + f2.h[j2]; i++) SET(f2.rmask, i);
+			SET(f1.hmask, j1);
+			SET(f2.hmask, j2);
+			i1 += f1.h[j1++];
+			i2 += f2.h[j2++];
+		}
+	}
+}
+
+void removenonshared(func *f1, func *f2) {
+
+	register dim i, i1, i2, j, j1, j2;
+	i1 = i2 = j1 = j2 = 0;
+	register char cmp;
+	register func *f;
+	register int k;
+
+	while (i1 != f1->n && i2 != f2->n) {
+		if ((cmp = compare_cm(f1->data + i1, f2->data + i2, *f1, *f2))) {
+			if (cmp < 0) f = f1, i = i1, j = j1;
+			else f = f2, i = i2, j = j2;
+			for (k = f->c - 1; k >= 0; k--)
+			memmove(f->data + i + k * f->n, f->data + i + k * f->n + f->h[j], sizeof(chunk) * ((f->c - k) * (f->n - f->h[j]) - i));
+			//for (k = 0; k < f->c; k++) {
+			//	memmove(f->data + i + (f->c - k - 1) * f->n, f->data + i + (f->c - k - 1) * f->n + f->h[j],
+			//	sizeof(chunk) * (k * (f->n - f->h[j]) + f->n - i - f->h[j]));
+			//	sizeof(chunk) * ((k + 1) * (f->n - f->h[j]) - i));
+			//}
+			f->n -= f->h[j];
+			memmove(f->h + j, f->h + j + 1, sizeof(dim) * (f->hn - j - 1));
+			(f->hn)--;
+		}
+		else {
+			i1 += f1->h[j1++];
+			i2 += f2->h[j2++];
+		}
+	}
+
+	if (i1 != f1->n) f = f1, i = i1, j = j1;
+	else f = f2, i = i2, j = j2;
+	for (k = f->c - 2; k >= 0; k--)
+	memmove(f->data + i + k * f->n, f->data + (k + 1) * f->n, sizeof(chunk) * i * (f->c - k - 1));
+	f->hn = j;
+	f->n = i;
+	f1->data = realloc(f1->data, sizeof(chunk) * f1->n * f1->c);
+	f2->data = realloc(f2->data, sizeof(chunk) * f2->n * f2->c);
+	f1->h = realloc(f1->h, sizeof(dim) * f1->hn);
+	f2->h = realloc(f2->h, sizeof(dim) * f2->hn);
 }

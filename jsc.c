@@ -59,29 +59,40 @@ int main(int argc, char *argv[]) {
 	gettimeofday(&t2, NULL);
 	printf("%f seconds\n", (double)(t2.tv_usec - t1.tv_usec) / 1e6 + t2.tv_sec - t1.tv_sec);
 
-	dim n1, n2;
-	printf("%u unique combinations\n", n1 = uniquecombinations(f1));
-	printf("%u unique combinations\n", n2 = uniquecombinations(f2));
-	dim h1[n1], h2[n2];
-	memset(h1, 0, sizeof(dim) * n1);
-	memset(h2, 0, sizeof(dim) * n2);
+	printf("%u unique combinations\n", f1.hn = uniquecombinations(f1));
+	printf("%u unique combinations\n", f2.hn = uniquecombinations(f2));
+	f1.h = calloc(f1.hn, sizeof(dim));
+	f2.h = calloc(f2.hn, sizeof(dim));
 
 	printf("Histogram... ");
 	fflush(stdout);
 	gettimeofday(&t1, NULL);
-	histogram(f1, h1);
-	histogram(f2, h2);
+	histogram(f1);
+	histogram(f2);
 	gettimeofday(&t2, NULL);
 	printf("%f seconds\n", (double)(t2.tv_usec - t1.tv_usec) / 1e6 + t2.tv_sec - t1.tv_sec);
+	//print(f1, c1);
+	//print(f2, c2);
 
+	puts("Checksum...");
+	printf("Checksum 1 = %u (size = %zu bytes)\n", crc32(f1.data, sizeof(chunk) * f1.n * f1.c), sizeof(chunk) * f1.n * f1.c);
+	printf("Checksum Histogram 1 = %u (size = %zu bytes)\n", crc32(f1.h, sizeof(dim) * f1.hn), sizeof(dim) * f1.hn);
+	printf("Checksum 2 = %u (size = %zu bytes)\n", crc32(f2.data, sizeof(chunk) * f2.n * f2.c), sizeof(chunk) * f2.n * f2.c);
+	printf("Checksum Histogram 2 = %u (size = %zu bytes)\n", crc32(f2.h, sizeof(dim) * f2.hn), sizeof(dim) * f2.hn);
+
+	f1.rmask = calloc(CEIL(f1.n, BITSPERCHUNK), sizeof(chunk));
+	f1.hmask = calloc(CEIL(f1.hn, BITSPERCHUNK), sizeof(chunk));
+	f2.rmask = calloc(CEIL(f2.n, BITSPERCHUNK), sizeof(chunk));
+	f2.hmask = calloc(CEIL(f2.hn, BITSPERCHUNK), sizeof(chunk));
+	sharedrows(f1, f2);
 	//transpose(f1.data, f1.n, f1.c);
 	//transpose(f2.data, f2.n, f2.c);
 
 	puts("Checksum...");
 	printf("Checksum 1 = %u (size = %zu bytes)\n", crc32(f1.data, sizeof(chunk) * f1.n * f1.c), sizeof(chunk) * f1.n * f1.c);
-	printf("Checksum Histogram 1 = %u (size = %zu bytes)\n", crc32(h1, sizeof(dim) * n1), sizeof(dim) * n1);
+	printf("Checksum Histogram 1 = %u (size = %zu bytes)\n", crc32(f1.h, sizeof(dim) * f1.hn), sizeof(dim) * f1.hn);
 	printf("Checksum 2 = %u (size = %zu bytes)\n", crc32(f2.data, sizeof(chunk) * f2.n * f2.c), sizeof(chunk) * f2.n * f2.c);
-	printf("Checksum Histogram 2 = %u (size = %zu bytes)\n", crc32(h2, sizeof(dim) * n2), sizeof(dim) * n2);
+	printf("Checksum Histogram 2 = %u (size = %zu bytes)\n", crc32(f2.h, sizeof(dim) * f2.hn), sizeof(dim) * f2.hn);
 
 	free(f1.vars);
 	free(f1.data);

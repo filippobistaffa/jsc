@@ -1,70 +1,9 @@
 #include "jsc.h"
 
-template<dim N, dim M, dim C>
-__global__ void shared2least(func f) {
+__global__ void histogramproduct(dim *h1, dim *h2, dim *hr, dim hn) {
 
-	dim tid, tx, bx = blockIdx.x;
-	tid = bx * THREADSPERBLOCK + (tx = threadIdx.x);
-
-	if (tid < N) {
-
-		__shared__ chunk s[C], a[C], o[C], m[C], sh[C * THREADSPERBLOCK];
-		__shared__ var v[M];
-		dim x, y, i;
-		var t;
-
-		if (!bx) for (i = tx; i < M; i += THREADSPERBLOCK) v[i] = f.vars[i];
-		if (tx < C) {
-			s[tx] = 0;
-			//m[tx] = f.mask[tx];
-		}
-
-		//if (!bx && !tx) for (i = 0; i < M; i++) printf("v[%u] = %u\n", i, v[i]);
-
-		__syncthreads();
-
-		#ifdef UNROLL
-                #pragma unroll 2
-                #endif
-		for (i = 0; i < C; i++) sh[THREADSPERBLOCK * i + tx] = f.data[N * i + tid];
-
-		if (tx < f.s / BITSPERCHUNK) s[tx] = ~(0ULL);
-		if ((tx == 0) && (f.s % BITSPERCHUNK)) s[f.s / BITSPERCHUNK] = (1ULL << (f.s % BITSPERCHUNK)) - 1;
-		if (tx < C) {
-			a[tx] = s[tx] & ~m[tx];
-			o[tx] = m[tx] & ~s[tx];
-		}
-
-		__syncthreads();
-
-	        while (__any(tx < C && o[tx])) {
-        	        i = x = y = 0;
-                	while (!o[i++]) x += BITSPERCHUNK;
-    	        	x += __ffsll(o[i - 1]) - 1;
-       	        	i = 0;
-                	while (!a[i++]) y += BITSPERCHUNK;
-                	y += __ffsll(a[i - 1]) - 1;
-			SWAP(sh + tx, x, y, THREADSPERBLOCK);
-			if (!tx) {
-				if (!bx) {
-					//printf("switched v[%u] = %u with v[%u] = %u\n", x, v[x], y, v[y]);
-					t = v[x];
-	                		v[x] = v[y];
-        	        		v[y] = t;
-				}
-	               		o[x / BITSPERCHUNK] ^= 1ULL << (x % BITSPERCHUNK);
-	                	a[y / BITSPERCHUNK] ^= 1ULL << (y % BITSPERCHUNK);
-			}
-			__syncthreads();
-        	}
-
-		#ifdef UNROLL
-		#pragma unroll 2
-		#endif
-        	for (i = 0; i < C; i++) f.data[N * i + tid] = sh[THREADSPERBLOCK * i + tx];
-
-		if (!bx) for (i = tx; i < M; i += THREADSPERBLOCK) f.vars[i] = v[i];
-	}
+	dim tid = blockIdx.x * THREADSPERBLOCK + threadIdx.x;
+	if (tid < hn) hr[tid] = h1[tid] * h2[tid];
 }
 
 int main(int argc, char *argv[]) {
@@ -152,12 +91,15 @@ int main(int argc, char *argv[]) {
 	gettimeofday(&t2, NULL);
 	printf("%f seconds\n", (double)(t2.tv_usec - t1.tv_usec) / 1e6 + t2.tv_sec - t1.tv_sec);
 
-	dim *h1d, *h2d;
+	dim *h1d, *h2d, *hrd;
 	cudaMalloc(&(h1d), sizeof(dim) * hn);
 	cudaMalloc(&(h2d), sizeof(dim) * hn);
+	cudaMalloc(&(hrd), sizeof(dim) * hn);
 
 	cudaMemcpy(h1d, f1.h, sizeof(dim) * hn, cudaMemcpyHostToDevice);
 	cudaMemcpy(h2d, f2.h, sizeof(dim) * hn, cudaMemcpyHostToDevice);
+
+	histogramproduct<<<CEIL(hn, THREADSPERBLOCK), THREADSPERBLOCK>>>(h1d, h2d, hrd, hn);
 
 	puts("Checksum...");
 	printf("Checksum 1 = %u (size = %zu bytes)\n", crc32(f1.data, sizeof(chunk) * f1.n * f1.c), sizeof(chunk) * f1.n * f1.c);
@@ -167,6 +109,7 @@ int main(int argc, char *argv[]) {
 
 	cudaFree(h1d);
 	cudaFree(h2d);
+	cudaFree(hrd);
 
 	free(f1.hmask);
 	free(f2.hmask);

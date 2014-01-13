@@ -115,6 +115,8 @@ int main(int argc, char *argv[]) {
 	reordershared(f2, f1.vars);
 	gettimeofday(&t2, NULL);
 	printf("%f seconds\n", (double)(t2.tv_usec - t1.tv_usec) / 1e6 + t2.tv_sec - t1.tv_sec);
+	free(c1);
+	free(c2);
 
 	printf("Sort... ");
 	fflush(stdout);
@@ -166,11 +168,14 @@ int main(int argc, char *argv[]) {
 	cudaFree(h1d);
 	cudaFree(h2d);
 
+	free(f1.hmask);
+	free(f2.hmask);
 	free(f1.vars);
 	free(f1.data);
 	free(f2.vars);
 	free(f2.data);
+	free(f1.h);
+	free(f2.h);
 
 	return 0;
 }
-

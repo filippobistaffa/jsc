@@ -1,4 +1,10 @@
 #include "jsc.h"
+#include <thrust/scan.h>
+#include <thrust/reduce.h>
+#include <thrust/device_ptr.h>
+#include <thrust/device_vector.h>
+
+using namespace thrust;
 
 __global__ void histogramproduct(dim *h1, dim *h2, dim *hr, dim hn) {
 
@@ -60,8 +66,6 @@ int main(int argc, char *argv[]) {
 	printf("Sort... ");
 	fflush(stdout);
 	gettimeofday(&t1, NULL);
-	//qsort_r(f1.data, f1.n, sizeof(chunk) * f1.c, compare, &f1);
-	//qsort_r(f2.data, f2.n, sizeof(chunk) * f2.c, compare, &f2);
 	sort(f1);
 	sort(f2);
 	gettimeofday(&t2, NULL);
@@ -91,15 +95,26 @@ int main(int argc, char *argv[]) {
 	gettimeofday(&t2, NULL);
 	printf("%f seconds\n", (double)(t2.tv_usec - t1.tv_usec) / 1e6 + t2.tv_sec - t1.tv_sec);
 
-	dim *h1d, *h2d, *hrd;
+	dim *h1d, *h2d, *hpd;
 	cudaMalloc(&(h1d), sizeof(dim) * hn);
 	cudaMalloc(&(h2d), sizeof(dim) * hn);
-	cudaMalloc(&(hrd), sizeof(dim) * hn);
-
+	cudaMalloc(&(hpd), sizeof(dim) * hn);
 	cudaMemcpy(h1d, f1.h, sizeof(dim) * hn, cudaMemcpyHostToDevice);
 	cudaMemcpy(h2d, f2.h, sizeof(dim) * hn, cudaMemcpyHostToDevice);
 
-	histogramproduct<<<CEIL(hn, THREADSPERBLOCK), THREADSPERBLOCK>>>(h1d, h2d, hrd, hn);
+	histogramproduct<<<CEIL(hn, THREADSPERBLOCK), THREADSPERBLOCK>>>(h1d, h2d, hpd, hn);
+
+	device_ptr<dim> h1t(h1d);
+	device_ptr<dim> h2t(h2d);
+	device_ptr<dim> hpt(hpd);
+	device_vector<dim> pfxh1t(hn);
+	device_vector<dim> pfxh2t(hn);
+	device_vector<dim> pfxhpt(hn);
+
+	exclusive_scan(h1t, h1t + hn, pfxh1t.begin());
+	exclusive_scan(h2t, h2t + hn, pfxh2t.begin());
+	exclusive_scan(hpt, hpt + hn, pfxhpt.begin());
+	dim no = reduce(pfxhpt.begin(), pfxhpt.end());
 
 	puts("Checksum...");
 	printf("Checksum 1 = %u (size = %zu bytes)\n", crc32(f1.data, sizeof(chunk) * f1.n * f1.c), sizeof(chunk) * f1.n * f1.c);
@@ -109,7 +124,7 @@ int main(int argc, char *argv[]) {
 
 	cudaFree(h1d);
 	cudaFree(h2d);
-	cudaFree(hrd);
+	cudaFree(hpd);
 
 	free(f1.hmask);
 	free(f2.hmask);

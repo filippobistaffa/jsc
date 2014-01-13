@@ -1,7 +1,9 @@
 #ifndef JSC_H_
 #define JSC_H_
 
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
 
 #include <omp.h>
 #include <stdio.h>

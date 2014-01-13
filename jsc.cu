@@ -1,78 +1,6 @@
 #include "jsc.h"
 
 template<dim N, dim M, dim C>
-void randomdata(func f) { // assumes BITSPERCHUNK == 64
-
-	register dim i, j;
-	for (i = 0; i < N; i++) {
-		for (j = 0; j < M / BITSPERCHUNK; j++) f.data[j * N + i] = genrand64_int64();
-		if (M % BITSPERCHUNK) f.data[(C - 1) * N + i] = genrand64_int64() & ((1ULL << (M % BITSPERCHUNK)) - 1);
-	}
-}
-
-template<dim M>
-void randomvars(func f, dim max) {
-
-	register dim i, j;
-	register var v;
-	srand(SEED);
-
-	for (i = 0; i < M; i++) {
-		random:
-		v = rand() % max;
-		for (j = 0; j < i; j++)
-			if (f.vars[j] == v)
-			goto random;
-		f.vars[i] = v;
-	}
-}
-
-template<dim N, dim M, dim C>
-void print(func f, chunk *s) {
-
-	register dim i, j, k;
-
-	for (i = 0; i < M; i++) {
-		if (i & 1) printf("\033[1m%2u\033[0m", i);
-		else printf("%2u", i);
-	}
-	printf("\n");
-
-	for (i = 0; i < M; i++) {
-		if (i & 1) printf("\033[1m");
-		if (s && ((s[i / BITSPERCHUNK] >> (i % BITSPERCHUNK)) & 1)) printf("\x1b[31m%2u\x1b[0m", f.vars[i]);
-		else printf("%2u", f.vars[i]);
-		if (i & 1) printf("\033[0m");
-	}
-	printf("\n");
-
-	for (i = 0; i < N; i++) {
-		for (j = 0; j < M / BITSPERCHUNK; j++)
-			for (k = 0; k < BITSPERCHUNK; k++)
-				printf("%2zu", (f.data[j * N + i] >> k) & 1);
-		for (k = 0; k < M % BITSPERCHUNK; k++)
-			printf("%2zu", (f.data[(C - 1) * N + i] >> k) & 1);
-		printf("\n");
-	}
-}
-
-template<dim MA, dim MB>
-void sharedmasks(func f1, chunk* s1, func f2, chunk* s2) {
-
-	register dim i, j;
-
-	for (i = 0; i < MA; i++)
-		for (j = 0; j < MB; j++)
-			if (f1.vars[i] == f2.vars[j]) {
-				SET(s1, i);
-				SET(s2, j);
-				(f1.s)++;
-				(f2.s)++;
-				break;
-			}
-}
-
-template<dim N, dim M, dim C>
 __global__ void shared2least(func f) {
 
 	dim tid, tx, bx = blockIdx.x;
@@ -85,15 +13,10 @@ __global__ void shared2least(func f) {
 		dim x, y, i;
 		var t;
 
-		if (!tx) printf("Block #%u\n", bx);
-
-		if (!bx) for (i = tx; i < M; i += THREADSPERBLOCK) {
-			v[i] = f.vars[i];
-		//printf("v[%u] = %u\n", i, v[i]);
-		}
+		if (!bx) for (i = tx; i < M; i += THREADSPERBLOCK) v[i] = f.vars[i];
 		if (tx < C) {
 			s[tx] = 0;
-			m[tx] = f.mask[tx];
+			//m[tx] = f.mask[tx];
 		}
 
 		//if (!bx && !tx) for (i = 0; i < M; i++) printf("v[%u] = %u\n", i, v[i]);
@@ -101,7 +24,7 @@ __global__ void shared2least(func f) {
 		__syncthreads();
 
 		#ifdef UNROLL
-                #pragma unroll UNROLL
+                #pragma unroll 2
                 #endif
 		for (i = 0; i < C; i++) sh[THREADSPERBLOCK * i + tx] = f.data[N * i + tid];
 
@@ -136,7 +59,7 @@ __global__ void shared2least(func f) {
         	}
 
 		#ifdef UNROLL
-		#pragma unroll UNROLL
+		#pragma unroll 2
 		#endif
         	for (i = 0; i < C; i++) f.data[N * i + tid] = sh[THREADSPERBLOCK * i + tx];
 
@@ -146,39 +69,107 @@ __global__ void shared2least(func f) {
 
 int main(int argc, char *argv[]) {
 
+	func f1, f2;
+	struct timeval t1, t2;
 	init_genrand64(SEED);
+	srand(SEED);
 
-	func f_h, f_d;
-	f_h.vars = (var *)malloc(sizeof(var) * M1);
-	f_h.data = (chunk *)calloc(N1 * C1, sizeof(chunk));
+	f1.n = 1e8;
+	f1.m = 80;
+	f2.n = 1e8;
+	f2.m = 50;
 
-	randomvars<M1>(f_h, 100);
-	randomdata<N1, M1, C1>(f_h);
+	f1.c = CEIL(f1.m, BITSPERCHUNK);
+	f2.c = CEIL(f2.m, BITSPERCHUNK);
+	f1.vars = (var *)malloc(sizeof(var) * f1.m);
+	f2.vars = (var *)malloc(sizeof(var) * f2.m);
+	f1.data = (chunk *)calloc(1, sizeof(chunk) * f1.n * f1.c);
+	f2.data = (chunk *)calloc(1, sizeof(chunk) * f2.n * f2.c);
 
-	chunk c_h[2] = {1561500000000000000, 28};
-	f_h.s = __builtin_popcountll(c_h[0]) +  + __builtin_popcountll(c_h[1]);
+	if (!f1.data || !f2.data) {
+		printf("Not enough memory!\n");
+		return 1;
+	}
 
-	f_d = f_h;
-	cudaMalloc(&(f_d.vars), sizeof(var) * M1);
-	cudaMemcpy(f_d.vars, f_h.vars, sizeof(var) * M1, cudaMemcpyHostToDevice);
-	cudaMalloc(&(f_d.mask), sizeof(chunk) * C1);
-	cudaMemcpy(f_d.mask, c_h, sizeof(chunk) * C1, cudaMemcpyHostToDevice);
-	cudaMalloc(&(f_d.data), sizeof(chunk) * N1 * C1);
-	cudaMemcpy(f_d.data, f_h.data, sizeof(chunk) * N1 * C1, cudaMemcpyHostToDevice);
+	printf("Random data... ");
+	fflush(stdout);
+	gettimeofday(&t1, NULL);
+	randomvars(f1);
+	randomdata(f1);
+	randomvars(f2);
+	randomdata(f2);
+	gettimeofday(&t2, NULL);
+	printf("%f seconds\n", (double)(t2.tv_usec - t1.tv_usec) / 1e6 + t2.tv_sec - t1.tv_sec);
 
-	print<N1, M1, C1>(f_h, c_h);
-	shared2least<N1, M1, C1><<<CEIL(N1, THREADSPERBLOCK), THREADSPERBLOCK>>>(f_d);
+	chunk *c1 = (chunk *)calloc(f1.c, sizeof(chunk));
+	chunk *c2 = (chunk *)calloc(f2.c, sizeof(chunk));
+	sharedmasks(&f1, c1, &f2, c2);
+	f1.mask = f2.mask = (1ULL << (f1.s % BITSPERCHUNK)) - 1;
+	printf("%u shared variables\n", f1.s);
 
-	cudaMemcpy(f_h.vars, f_d.vars, sizeof(var) * M1, cudaMemcpyDeviceToHost);
-	cudaMemcpy(f_h.data, f_d.data, sizeof(chunk) * N1 * C1, cudaMemcpyDeviceToHost);
+	printf("Shift & Reorder... ");
+	fflush(stdout);
+	gettimeofday(&t1, NULL);
+	shared2least(f1, c1);
+	shared2least(f2, c2);
+	reordershared(f2, f1.vars);
+	gettimeofday(&t2, NULL);
+	printf("%f seconds\n", (double)(t2.tv_usec - t1.tv_usec) / 1e6 + t2.tv_sec - t1.tv_sec);
 
-	print<N1, M1, C1>(f_h, NULL);
+	printf("Sort... ");
+	fflush(stdout);
+	gettimeofday(&t1, NULL);
+	//qsort_r(f1.data, f1.n, sizeof(chunk) * f1.c, compare, &f1);
+	//qsort_r(f2.data, f2.n, sizeof(chunk) * f2.c, compare, &f2);
+	sort(f1);
+	sort(f2);
+	gettimeofday(&t2, NULL);
+	printf("%f seconds\n", (double)(t2.tv_usec - t1.tv_usec) / 1e6 + t2.tv_sec - t1.tv_sec);
 
-	cudaFree(f_d.vars);
-	cudaFree(f_d.data);
+	printf("%u unique combinations\n", f1.hn = uniquecombinations(f1));
+	printf("%u unique combinations\n", f2.hn = uniquecombinations(f2));
+	f1.h = (dim *)calloc(f1.hn, sizeof(dim));
+	f2.h = (dim *)calloc(f2.hn, sizeof(dim));
 
-	free(f_h.vars);
-	free(f_h.data);
+	printf("Histogram... ");
+	fflush(stdout);
+	gettimeofday(&t1, NULL);
+	histogram(f1);
+	histogram(f2);
+	gettimeofday(&t2, NULL);
+	printf("%f seconds\n", (double)(t2.tv_usec - t1.tv_usec) / 1e6 + t2.tv_sec - t1.tv_sec);
+
+	printf("Matching Rows... ");
+	fflush(stdout);
+	gettimeofday(&t1, NULL);
+	f1.hmask = (chunk *)calloc(CEIL(f1.hn, BITSPERCHUNK), sizeof(chunk));
+	f2.hmask = (chunk *)calloc(CEIL(f2.hn, BITSPERCHUNK), sizeof(chunk));
+	dim n1, n2, hn;
+	markmatchingrows(f1, f2, &n1, &n2, &hn);
+	copymatchingrows(&f1, &f2, n1, n2, hn);
+	gettimeofday(&t2, NULL);
+	printf("%f seconds\n", (double)(t2.tv_usec - t1.tv_usec) / 1e6 + t2.tv_sec - t1.tv_sec);
+
+	dim *h1d, *h2d;
+	cudaMalloc(&(h1d), sizeof(dim) * hn);
+	cudaMalloc(&(h2d), sizeof(dim) * hn);
+
+	cudaMemcpy(h1d, f1.h, sizeof(dim) * hn, cudaMemcpyHostToDevice);
+	cudaMemcpy(h2d, f2.h, sizeof(dim) * hn, cudaMemcpyHostToDevice);
+
+	puts("Checksum...");
+	printf("Checksum 1 = %u (size = %zu bytes)\n", crc32(f1.data, sizeof(chunk) * f1.n * f1.c), sizeof(chunk) * f1.n * f1.c);
+	printf("Checksum Histogram 1 = %u (size = %zu bytes)\n", crc32(f1.h, sizeof(dim) * f1.hn), sizeof(dim) * f1.hn);
+	printf("Checksum 2 = %u (size = %zu bytes)\n", crc32(f2.data, sizeof(chunk) * f2.n * f2.c), sizeof(chunk) * f2.n * f2.c);
+	printf("Checksum Histogram 2 = %u (size = %zu bytes)\n", crc32(f2.h, sizeof(dim) * f2.hn), sizeof(dim) * f2.hn);
+
+	cudaFree(h1d);
+	cudaFree(h2d);
+
+	free(f1.vars);
+	free(f1.data);
+	free(f2.vars);
+	free(f2.data);
 
 	return 0;
 }

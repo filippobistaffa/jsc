@@ -21,7 +21,7 @@ int main(int argc, char *argv[]) {
 
 	f1.n = 1e8;
 	f1.m = 80;
-	f2.n = 1e8;
+	f2.n = 1e7;
 	f2.m = 50;
 
 	f1.c = CEIL(f1.m, BITSPERCHUNK);
@@ -95,6 +95,9 @@ int main(int argc, char *argv[]) {
 	gettimeofday(&t2, NULL);
 	printf("%f seconds\n", (double)(t2.tv_usec - t1.tv_usec) / 1e6 + t2.tv_sec - t1.tv_sec);
 
+	printf("%u matching rows\n", f1.n);
+	printf("%u matching rows\n", f2.n);
+
 	dim *h1d, *h2d, *hpd;
 	cudaMalloc(&(h1d), sizeof(dim) * hn);
 	cudaMalloc(&(h2d), sizeof(dim) * hn);
@@ -115,6 +118,8 @@ int main(int argc, char *argv[]) {
 	exclusive_scan(h2t, h2t + hn, pfxh2t.begin());
 	exclusive_scan(hpt, hpt + hn, pfxhpt.begin());
 	dim no = reduce(pfxhpt.begin(), pfxhpt.end());
+
+	printf("Result size = %zu bytes\n", sizeof(chunk) * no * CEIL(f1.m + f2.m - f1.s, BITSPERCHUNK));
 
 	puts("Checksum...");
 	printf("Checksum 1 = %u (size = %zu bytes)\n", crc32(f1.data, sizeof(chunk) * f1.n * f1.c), sizeof(chunk) * f1.n * f1.c);

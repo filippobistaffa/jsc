@@ -117,7 +117,7 @@ int main(int argc, char *argv[]) {
 	exclusive_scan(h1t, h1t + hn, pfxh1t.begin());
 	exclusive_scan(h2t, h2t + hn, pfxh2t.begin());
 	exclusive_scan(hpt, hpt + hn, pfxhpt.begin());
-	dim no = reduce(pfxhpt.begin(), pfxhpt.end());
+	dim no = reduce(hpt, hpt + hn);
 
 	printf("Result size = %zu bytes\n", sizeof(chunk) * no * CEIL(f1.m + f2.m - f1.s, BITSPERCHUNK));
 

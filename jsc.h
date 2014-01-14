@@ -13,18 +13,23 @@
 #include <assert.h>
 #include <sys/time.h>
 
-#define SEED 10
-#define BITSPERCHUNK 64
+#ifdef __cplusplus // CUDA
+
+#include <thrust/scan.h>
+#include <thrust/reduce.h>
+#include <thrust/device_ptr.h>
+#include <thrust/device_vector.h>
+
 #define SHAREDSIZE 49152
-#define THREADSPERBLOCK 32
+#define THREADSPERBLOCK 512
+#define MAXTHREADSPERBLOCK 1024
+
+#endif
+
+#define SEED 1057
+#define BITSPERCHUNK 64
 #define CPUTHREADS 8
-#define MAXVAR 100
-
-#define N1 100
-#define M1 70
-#define C1 CEIL(M1, BITSPERCHUNK)
-
-#define CEIL(X, Y) (1 + (((X) - 1) / (Y)))
+#define MAXVAR 200
 
 typedef uint64_t chunk;
 typedef uint16_t var;

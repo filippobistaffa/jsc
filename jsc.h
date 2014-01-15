@@ -15,10 +15,7 @@
 
 #ifdef __cplusplus // CUDA
 
-#include <thrust/scan.h>
-#include <thrust/reduce.h>
-#include <thrust/device_ptr.h>
-#include <thrust/device_vector.h>
+#include <cudpp.h>
 
 #define SHAREDSIZE 49152
 #define THREADSPERBLOCK 512

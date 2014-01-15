@@ -94,28 +94,40 @@ int main(int argc, char *argv[]) {
 	printf("%u matching rows\n", f1.n);
 	printf("%u matching rows\n", f2.n);
 
-	dim *h1d, *h2d, *hpd;
-	cudaMalloc(&(h1d), sizeof(dim) * hn);
-	cudaMalloc(&(h2d), sizeof(dim) * hn);
-	cudaMalloc(&(hpd), sizeof(dim) * hn);
+	dim on, *h1d, *h2d, *hpd, *pfxh1d, *pfxh2d, *pfxhpd;
+	printf("Allocating... ");
+	fflush(stdout);
+	gettimeofday(&t1, NULL);
+	cudaMalloc(&h1d, sizeof(dim) * hn);
+	cudaMalloc(&h2d, sizeof(dim) * hn);
+	cudaMalloc(&hpd, sizeof(dim) * hn);
+        cudaMalloc(&pfxh1d, sizeof(dim) * hn);
+        cudaMalloc(&pfxh2d, sizeof(dim) * hn);
+        cudaMalloc(&pfxhpd, sizeof(dim) * hn);
+	gettimeofday(&t2, NULL);
+        printf("%f seconds\n", (double)(t2.tv_usec - t1.tv_usec) / 1e6 + t2.tv_sec - t1.tv_sec);
+
 	cudaMemcpy(h1d, f1.h, sizeof(dim) * hn, cudaMemcpyHostToDevice);
 	cudaMemcpy(h2d, f2.h, sizeof(dim) * hn, cudaMemcpyHostToDevice);
 
 	histogramproduct<<<CEIL(hn, THREADSPERBLOCK), THREADSPERBLOCK>>>(h1d, h2d, hpd, hn);
 
-	device_ptr<dim> h1t(h1d);
-	device_ptr<dim> h2t(h2d);
-	device_ptr<dim> hpt(hpd);
-	device_vector<dim> pfxh1t(hn);
-	device_vector<dim> pfxh2t(hn);
-	device_vector<dim> pfxhpt(hn);
+	CUDPPHandle cudpp, pfxsum = 0;
+	cudppCreate(&cudpp);
+	CUDPPConfiguration config;
+	config.op = CUDPP_ADD;
+	config.datatype = CUDPP_UINT;
+	config.algorithm = CUDPP_SCAN;
+	config.options = CUDPP_OPTION_FORWARD | CUDPP_OPTION_INCLUSIVE;
+	cudppPlan(cudpp, &pfxsum, config, hn, 1, 0);
+	cudppScan(pfxsum, pfxh1d, h1d, hn);
+	cudppScan(pfxsum, pfxh2d, h2d, hn);
+	cudppScan(pfxsum, pfxhpd, hpd, hn);
+	cudppDestroyPlan(pfxsum);
+	cudppDestroy(cudpp);
 
-	exclusive_scan(h1t, h1t + hn, pfxh1t.begin());
-	exclusive_scan(h2t, h2t + hn, pfxh2t.begin());
-	exclusive_scan(hpt, hpt + hn, pfxhpt.begin());
-	dim no = reduce(hpt, hpt + hn);
-
-	printf("Result size = %zu bytes\n", sizeof(chunk) * no * CEIL(f1.m + f2.m - f1.s, BITSPERCHUNK));
+	cudaMemcpy(&on, pfxhpd + hn - 1, sizeof(dim), cudaMemcpyDeviceToHost);
+	printf("Result size = %zu bytes\n", sizeof(chunk) * on * CEIL(f1.m + f2.m - f1.s, BITSPERCHUNK));
 
 	puts("Checksum...");
 	printf("Checksum 1 = %u (size = %zu bytes)\n", crc32(f1.data, sizeof(chunk) * f1.n * f1.c), sizeof(chunk) * f1.n * f1.c);
@@ -126,6 +138,9 @@ int main(int argc, char *argv[]) {
 	cudaFree(h1d);
 	cudaFree(h2d);
 	cudaFree(hpd);
+	cudaFree(pfxh1d);
+	cudaFree(pfxh2d);
+        cudaFree(pfxhpd);
 
 	free(f1.hmask);
 	free(f2.hmask);

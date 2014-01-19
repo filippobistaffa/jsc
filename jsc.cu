@@ -61,8 +61,10 @@ int main(int argc, char *argv[]) {
 	chunk *c1 = (chunk *)calloc(f1.c, sizeof(chunk));
 	chunk *c2 = (chunk *)calloc(f2.c, sizeof(chunk));
 	sharedmasks(&f1, c1, &f2, c2);
+
 	f1.mask = f2.mask = (1ULL << (f1.s % BITSPERCHUNK)) - 1;
 	printf("%u shared variables\n", f1.s);
+	if (!f1.s) return 1;
 
 	printf("Shift & Reorder... ");
 	fflush(stdout);

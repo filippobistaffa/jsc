@@ -1,11 +1,27 @@
 #include "jsc.h"
 
-using namespace thrust;
-
 __global__ void histogramproduct(dim *h1, dim *h2, dim *hr, dim hn) {
 
 	dim tid = blockIdx.x * THREADSPERBLOCK + threadIdx.x;
 	if (tid < hn) hr[tid] = h1[tid] * h2[tid];
+}
+
+dim linearbinpacking(func f1, func f2, dim *hp, dim *o) {
+
+	register size_t m, mb = MEMORY(0);
+	register dim i, j = 1;
+
+	for (i = 1; i < f1.hn; i++)
+		if ((m = MEMORY(i)) + mb > SHAREDSIZE) {
+			o[(j - 1) * 2 + 1] = CEIL(mb, SHAREDSIZE);
+			o[j++ * 2] = i;
+			mb = m;
+		}
+		else mb += m;
+
+	o[(j - 1) * 2 + 1] = CEIL(mb, SHAREDSIZE);
+	o[0] = 0;
+	return j;
 }
 
 int main(int argc, char *argv[]) {

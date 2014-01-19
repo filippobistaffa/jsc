@@ -20,6 +20,7 @@
 #define SHAREDSIZE 49152
 #define THREADSPERBLOCK 512
 #define MAXTHREADSPERBLOCK 1024
+#define MEMORY(I) (sizeof(chunk) * (f1.c * f1.h[I] + f2.c * f2.h[I] + CEIL(f1.m + f2.m - f1.s, BITSPERCHUNK) * hp[I]) + sizeof(dim) * 3)
 
 #endif
 

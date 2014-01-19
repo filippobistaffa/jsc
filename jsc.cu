@@ -1,15 +1,27 @@
 #include "jsc.h"
-#include <thrust/scan.h>
-#include <thrust/reduce.h>
-#include <thrust/device_ptr.h>
-#include <thrust/device_vector.h>
-
-using namespace thrust;
 
 __global__ void histogramproduct(dim *h1, dim *h2, dim *hr, dim hn) {
 
 	dim tid = blockIdx.x * THREADSPERBLOCK + threadIdx.x;
 	if (tid < hn) hr[tid] = h1[tid] * h2[tid];
+}
+
+dim linearbinpacking(func f1, func f2, dim *hp, dim *o) {
+
+	register size_t m, mb = MEMORY(0);
+	register dim i, j = 1;
+
+	for (i = 1; i < f1.hn; i++)
+		if ((m = MEMORY(i)) + mb > SHAREDSIZE) {
+			o[(j - 1) * 2 + 1] = CEIL(mb, SHAREDSIZE);
+			o[j++ * 2] = i;
+			mb = m;
+		}
+		else mb += m;
+
+	o[(j - 1) * 2 + 1] = CEIL(mb, SHAREDSIZE);
+	o[0] = 0;
+	return j;
 }
 
 int main(int argc, char *argv[]) {
@@ -21,7 +33,7 @@ int main(int argc, char *argv[]) {
 
 	f1.n = 1e8;
 	f1.m = 80;
-	f2.n = 1e8;
+	f2.n = 1e7;
 	f2.m = 50;
 
 	f1.c = CEIL(f1.m, BITSPERCHUNK);
@@ -49,8 +61,10 @@ int main(int argc, char *argv[]) {
 	chunk *c1 = (chunk *)calloc(f1.c, sizeof(chunk));
 	chunk *c2 = (chunk *)calloc(f2.c, sizeof(chunk));
 	sharedmasks(&f1, c1, &f2, c2);
+
 	f1.mask = f2.mask = (1ULL << (f1.s % BITSPERCHUNK)) - 1;
 	printf("%u shared variables\n", f1.s);
+	if (!f1.s) return 1;
 
 	printf("Shift & Reorder... ");
 	fflush(stdout);
@@ -95,26 +109,48 @@ int main(int argc, char *argv[]) {
 	gettimeofday(&t2, NULL);
 	printf("%f seconds\n", (double)(t2.tv_usec - t1.tv_usec) / 1e6 + t2.tv_sec - t1.tv_sec);
 
-	dim *h1d, *h2d, *hpd;
-	cudaMalloc(&(h1d), sizeof(dim) * hn);
-	cudaMalloc(&(h2d), sizeof(dim) * hn);
-	cudaMalloc(&(hpd), sizeof(dim) * hn);
+	printf("%u matching rows\n", f1.n);
+	printf("%u matching rows\n", f2.n);
+
+	dim on, *h1d, *h2d, *hpd, *pfxh1d, *pfxh2d, *pfxhpd;
+	printf("Allocating... ");
+	fflush(stdout);
+	gettimeofday(&t1, NULL);
+	cudaMalloc(&h1d, sizeof(dim) * hn);
+	cudaMalloc(&h2d, sizeof(dim) * hn);
+	cudaMalloc(&hpd, sizeof(dim) * hn);
+        cudaMalloc(&pfxh1d, sizeof(dim) * hn);
+        cudaMalloc(&pfxh2d, sizeof(dim) * hn);
+        cudaMalloc(&pfxhpd, sizeof(dim) * hn);
+	gettimeofday(&t2, NULL);
+        printf("%f seconds\n", (double)(t2.tv_usec - t1.tv_usec) / 1e6 + t2.tv_sec - t1.tv_sec);
+
 	cudaMemcpy(h1d, f1.h, sizeof(dim) * hn, cudaMemcpyHostToDevice);
 	cudaMemcpy(h2d, f2.h, sizeof(dim) * hn, cudaMemcpyHostToDevice);
 
 	histogramproduct<<<CEIL(hn, THREADSPERBLOCK), THREADSPERBLOCK>>>(h1d, h2d, hpd, hn);
 
-	device_ptr<dim> h1t(h1d);
-	device_ptr<dim> h2t(h2d);
-	device_ptr<dim> hpt(hpd);
-	device_vector<dim> pfxh1t(hn);
-	device_vector<dim> pfxh2t(hn);
-	device_vector<dim> pfxhpt(hn);
+	CUDPPHandle cudpp, pfxsum = 0;
+	cudppCreate(&cudpp);
+	CUDPPConfiguration config;
+	config.op = CUDPP_ADD;
+	config.datatype = CUDPP_UINT;
+	config.algorithm = CUDPP_SCAN;
+	config.options = CUDPP_OPTION_FORWARD | CUDPP_OPTION_INCLUSIVE;
+	cudppPlan(cudpp, &pfxsum, config, hn, 1, 0);
+	cudppScan(pfxsum, pfxh1d, h1d, hn);
+	cudppScan(pfxsum, pfxh2d, h2d, hn);
+	cudppScan(pfxsum, pfxhpd, hpd, hn);
+	cudppDestroyPlan(pfxsum);
+	cudppDestroy(cudpp);
 
-	exclusive_scan(h1t, h1t + hn, pfxh1t.begin());
-	exclusive_scan(h2t, h2t + hn, pfxh2t.begin());
-	exclusive_scan(hpt, hpt + hn, pfxhpt.begin());
-	dim no = reduce(pfxhpt.begin(), pfxhpt.end());
+	dim hp[hn], bn, *blocks = (dim *)malloc(sizeof(dim) * 2 * hn);
+	cudaMemcpy(hp, hpd, sizeof(dim) * hn, cudaMemcpyDeviceToHost);
+	bn = linearbinpacking(f1, f2, hp, blocks);
+	blocks = (dim *)realloc(blocks, sizeof(dim) * 2 * bn);
+
+	cudaMemcpy(&on, pfxhpd + hn - 1, sizeof(dim), cudaMemcpyDeviceToHost);
+	printf("Result size = %zu bytes\n", sizeof(chunk) * on * CEIL(f1.m + f2.m - f1.s, BITSPERCHUNK));
 
 	puts("Checksum...");
 	printf("Checksum 1 = %u (size = %zu bytes)\n", crc32(f1.data, sizeof(chunk) * f1.n * f1.c), sizeof(chunk) * f1.n * f1.c);
@@ -125,6 +161,9 @@ int main(int argc, char *argv[]) {
 	cudaFree(h1d);
 	cudaFree(h2d);
 	cudaFree(hpd);
+	cudaFree(pfxh1d);
+	cudaFree(pfxh2d);
+        cudaFree(pfxhpd);
 
 	free(f1.hmask);
 	free(f2.hmask);

@@ -13,18 +13,21 @@
 #include <assert.h>
 #include <sys/time.h>
 
-#define SEED 10
-#define BITSPERCHUNK 64
+#ifdef __cplusplus // CUDA
+
+#include <cudpp.h>
+
 #define SHAREDSIZE 49152
-#define THREADSPERBLOCK 32
+#define THREADSPERBLOCK 512
+#define MAXTHREADSPERBLOCK 1024
+#define MEMORY(I) (sizeof(chunk) * (f1.c * f1.h[I] + f2.c * f2.h[I] + CEIL(f1.m + f2.m - f1.s, BITSPERCHUNK) * hp[I]) + sizeof(dim) * 3)
+
+#endif
+
+#define SEED 1057
+#define BITSPERCHUNK 64
 #define CPUTHREADS 8
-#define MAXVAR 100
-
-#define N1 100
-#define M1 70
-#define C1 CEIL(M1, BITSPERCHUNK)
-
-#define CEIL(X, Y) (1 + (((X) - 1) / (Y)))
+#define MAXVAR 200
 
 typedef uint64_t chunk;
 typedef uint16_t var;

@@ -144,6 +144,11 @@ int main(int argc, char *argv[]) {
 	cudppDestroyPlan(pfxsum);
 	cudppDestroy(cudpp);
 
+	dim hp[hn], bn, *blocks = (dim *)malloc(sizeof(dim) * 2 * hn);
+	cudaMemcpy(hp, hpd, sizeof(dim) * hn, cudaMemcpyDeviceToHost);
+	bn = linearbinpacking(f1, f2, hp, blocks);
+	blocks = (dim *)realloc(blocks, sizeof(dim) * 2 * bn);
+
 	cudaMemcpy(&on, pfxhpd + hn - 1, sizeof(dim), cudaMemcpyDeviceToHost);
 	printf("Result size = %zu bytes\n", sizeof(chunk) * on * CEIL(f1.m + f2.m - f1.s, BITSPERCHUNK));
 

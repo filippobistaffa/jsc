@@ -2,7 +2,7 @@
 
 __constant__ uint4 bd[CONSTANTSIZE / sizeof(uint4)];
 
-__global__ void histogramproduct(dim *h1, dim *h2, dim *hr, dim hn) {
+__global__ void cudahistogramproduct(dim *h1, dim *h2, dim *hr, dim hn) {
 
 	dim tid = blockIdx.x * THREADSPERBLOCK + threadIdx.x;
 	if (tid < hn) hr[tid] = h1[tid] * h2[tid];
@@ -46,7 +46,7 @@ __global__ void computeoutput(func f1, func f2, chunk *data1, chunk *data2, dim 
 
 	dim h;
 	if (tx < j.x) for (h = 0; h < f1.c; h++) shdata[h * j.x + tx] = data1[h * f1.n + shpfx[0] + k.x + tx];
-	if (tx < j.y) for (h = 0; h < f2.c; h++) shdata[h * j.y + tx] = data2[h * f2.n + shpfx[m + 1] + k.y + tx];
+	if (tx < j.y) for (h = 0; h < f2.c; h++) shdata[j.x + h * j.y + tx] = data2[h * f2.n + shpfx[m + 1] + k.y + tx];
 	__syncthreads();
 }
 
@@ -78,10 +78,10 @@ int main(int argc, char *argv[]) {
 	init_genrand64(SEED);
 	srand(SEED);
 
-	f1.n = 1e8;
+	f1.n = 100;
 	f1.m = 80;
-	f2.n = 1e7;
-	f2.m = 50;
+	f2.n = 30;
+	f2.m = 100;
 
 	f1.c = CEIL(f1.m, BITSPERCHUNK);
 	f2.c = CEIL(f2.m, BITSPERCHUNK);
@@ -180,7 +180,7 @@ int main(int argc, char *argv[]) {
 	cudaMemcpy(h1d, f1.h, sizeof(dim) * hn, cudaMemcpyHostToDevice);
 	cudaMemcpy(h2d, f2.h, sizeof(dim) * hn, cudaMemcpyHostToDevice);
 
-	histogramproduct<<<CEIL(hn, THREADSPERBLOCK), THREADSPERBLOCK>>>(h1d, h2d, hpd, hn);
+	cudahistogramproduct<<<CEIL(hn, THREADSPERBLOCK), THREADSPERBLOCK>>>(h1d, h2d, hpd, hn);
 
 	CUDPPHandle cudpp, pfxsum = 0;
 	cudppCreate(&cudpp);
@@ -206,6 +206,10 @@ int main(int argc, char *argv[]) {
 	bh = (uint4 *)realloc(bh, sizeof(uint4) * bn);
 	cudaMemcpyToSymbol(bd, bh, sizeof(uint4) * bn);
 	printf("Used constant memory = %zu bytes\n", sizeof(uint3) * bn);
+
+	dim i;
+	for (i = 0; i < hn; i++) printf("%u * %u = %u (%zu)\n", f1.h[i], f2.h[i], hp[i], MEMORY(i));
+	for (i = 0; i < bn; i++) printf("%u %u %u %u\n", bh[i].x, bh[i].y, bh[i].z, bh[i].w);
 
 	computeoutput<<<bn, THREADSPERBLOCK>>>(f1, f2, d1d, d2d, pfxh1d, pfxh2d, pfxhpd);
 

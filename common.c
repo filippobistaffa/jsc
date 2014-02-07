@@ -16,6 +16,12 @@ void randomvars(func f) {
 	}
 }
 
+void randomvalues(func f) {
+
+	register dim i;
+	for (i = 0; i < f.n; i++) f.v[i] = (value)rand()*MAXVALUE/RAND_MAX;
+}
+
 void sharedmasks(func *f1, chunk* s1, func *f2, chunk* s2) {
 
 	register dim i, j;

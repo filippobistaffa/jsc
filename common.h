@@ -25,4 +25,14 @@ extern "C"
 #endif
 void randomvars(func f);
 
+#ifdef __cplusplus
+extern "C"
+#endif
+void prefixsum(dim *hi, dim *ho, dim hn);
+
+#ifdef __cplusplus
+extern "C"
+#endif
+void histogramproduct(dim *h1, dim *h2, dim *ho, dim hn);
+
 #endif  /* COMMON_H_ */

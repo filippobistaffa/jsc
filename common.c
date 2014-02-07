@@ -68,3 +68,16 @@ void transpose(chunk *data, dim r, dim c) {
 		for (i = 1, j = 1ULL << count[0]; i < n; i++, j += 1ULL << count[i - 1]) move(data, c, j, 1ULL << count[i]);
 	}
 }
+
+void prefixsum(dim *hi, dim *ho, dim hn) {
+
+	register dim i;
+	ho[0] = hi[0];
+	for (i = 1; i < hn; i++) ho[i] = hi[i] + ho[i - 1];
+}
+
+void histogramproduct(dim *h1, dim *h2, dim *ho, dim hn) {
+
+	register dim i;
+	for (i = 0; i < hn; i++) ho[i] = h1[i] * h2[i];
+}

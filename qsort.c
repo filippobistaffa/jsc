@@ -23,7 +23,11 @@
 #include "jsc.h"
 
 #define _SWAP(A, B, N, C) do { \
-	register chunk *__a = (A), *__b = (B); register dim i; \
+	register chunk *__a = (A), *__b = (B), *__bp = base_ptr; \
+	register value __t = *(f.v + (__a - __bp)); \
+	*(f.v + (__a - __bp)) = *(f.v + (__b - __bp)); \
+	*(f.v + (__b - __bp)) = __t; \
+	register dim i; \
 	for (i = 0; i < (C); i++) { \
 		register chunk __tmp = *(__a + i * (N)); \
 		*(__a + i * (N)) = *(__b + i * (N)); \
@@ -204,6 +208,9 @@ void sort(func f) {
 					memmove(tmp_ptr + i * f.n + 1, tmp_ptr + i * f.n, sizeof(chunk) * (run_ptr - tmp_ptr));
 					*(tmp_ptr + i * f.n) = trav;
 				}
+				register value tmp = *(f.v + (run_ptr - base_ptr));
+				memmove(f.v + (tmp_ptr - base_ptr) + 1, f.v + (tmp_ptr - base_ptr), sizeof(value) * (run_ptr - tmp_ptr));
+				*(f.v + (tmp_ptr - base_ptr)) = tmp;
 			}
 		}
 	}

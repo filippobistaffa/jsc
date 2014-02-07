@@ -43,7 +43,7 @@ __global__ void computeoutput(func f1, func f2, chunk *data1, chunk *data2, dim 
 
 	dim h;
 	if (tx < j.x) for (h = 0; h < f1.c; h++) shdata[h * j.x + tx] = data1[h * f1.n + shpfx[0] + k.x + tx];
-	if (tx < j.y) for (h = 0; h < f2.c; h++) shdata[h * j.y + tx] = data2[h * f2.n + shpfx[m] + k.y + tx];
+	if (tx < j.y) for (h = 0; h < f2.c; h++) shdata[j.x + h * j.y + tx] = data2[h * f2.n + shpfx[m] + k.y + tx];
 	__syncthreads();
 
 }

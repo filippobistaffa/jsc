@@ -2,7 +2,7 @@
 
 __constant__ uint4 bd[CONSTANTSIZE / sizeof(uint4)];
 
-__global__ void cudahistogramproduct(dim *h1, dim *h2, dim *hr, dim hn) {
+__global__ void histogramproduct(dim *h1, dim *h2, dim *hr, dim hn) {
 
 	dim tid = blockIdx.x * THREADSPERBLOCK + threadIdx.x;
 	if (tid < hn) hr[tid] = h1[tid] * h2[tid];
@@ -178,7 +178,7 @@ int main(int argc, char *argv[]) {
 	cudaMemcpy(h1d, f1.h, sizeof(dim) * hn, cudaMemcpyHostToDevice);
 	cudaMemcpy(h2d, f2.h, sizeof(dim) * hn, cudaMemcpyHostToDevice);
 
-	cudahistogramproduct<<<CEIL(hn, THREADSPERBLOCK), THREADSPERBLOCK>>>(h1d, h2d, hpd, hn);
+	histogramproduct<<<CEIL(hn, THREADSPERBLOCK), THREADSPERBLOCK>>>(h1d, h2d, hpd, hn);
 
 	CUDPPHandle cudpp, pfxsum = 0;
 	cudppCreate(&cudpp);

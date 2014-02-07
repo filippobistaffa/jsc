@@ -29,15 +29,18 @@
 #define BITSPERCHUNK 64
 #define CPUTHREADS 8
 #define MAXVAR 1000
+#define MAXVALUE 1000
 
 typedef uint64_t chunk;
 typedef uint16_t var;
 typedef uint32_t dim;
+typedef float value;
 
 typedef struct {
 	chunk *data, mask, *rmask, *hmask;
 	dim n, m, c, s, *h, hn;
 	var *vars;
+	value *v;
 } func;
 
 #ifdef ROWMAJOR

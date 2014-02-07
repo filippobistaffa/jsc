@@ -16,38 +16,36 @@ __global__ void computeoutput(func f1, func f2, chunk *data1, chunk *data2, dim 
 	if (!tx) i = bd[bx];
 	__syncthreads();
 
-	dim m = i.y ? 1 : i.z;
+	dim m = i.y ? 2 : i.z + 1;
 	__shared__ dim shpfx[SHAREDSIZE / sizeof(dim)];
-	chunk *shdata = ((chunk *)shpfx) + CEIL(3 * (m + 1) * sizeof(dim), sizeof(chunk));
+	chunk *shdata = ((chunk *)shpfx) + CEIL(3 * m * sizeof(dim), sizeof(chunk));
 	// assume THREADSPERBLOCK > m + 1
-	if (tx < m + 1 && (tx || i.x)) {
+	if (tx < m && (tx || i.x)) {
 		shpfx[tx] = pfxh1[i.x + tx - 1];
-		shpfx[tx + m + 1] = pfxh2[i.x + tx - 1];
-		shpfx[tx + 2 * m + 2] = pfxhp[i.x + tx - 1];
+		shpfx[tx + m ] = pfxh2[i.x + tx - 1];
+		shpfx[tx + 2 * m] = pfxhp[i.x + tx - 1];
 	}
-	if (!i.x) shpfx[0] = shpfx[m + 1] = shpfx[2 * m + 2] = 0;
+	if (!i.x) shpfx[0] = shpfx[m] = shpfx[2 * m] = 0;
 	__syncthreads();
 
 	uint2 j, k;
 	if (i.y) {
-		j = make_uint2((shpfx[1] - shpfx[0]) / i.y, (shpfx[m + 2] - shpfx[m + 1]) / i.y);
+		j = make_uint2((shpfx[1] - shpfx[0]) / i.y, (shpfx[m + 1] - shpfx[m]) / i.y);
 		k = make_uint2(j.x * i.z, j.y * i.w);
 	}
 	else {
-		j = make_uint2(shpfx[i.z] - shpfx[0], shpfx[i.z + m + 1] - shpfx[m + 1]);
+		j = make_uint2(shpfx[i.z] - shpfx[0], shpfx[i.z + m] - shpfx[m]);
 		k = make_uint2(0, 0);
 	}
 
 	if (i.y == i.z + 1) j.x += (shpfx[1] - shpfx[0]) % i.y;
-	if (i.y == i.w + 1) j.y += (shpfx[m + 2] - shpfx[m + 1]) % i.y;
-
-	//if (tx < j.x) printf("bx=%02u tx=%02u block=%02u [1] %02u -> %02u\n", bx, tx, i.x, shpfx[0] + k.x + tx, tx, data1[shpfx[0] + k.x + tx]);
-	//if (tx < j.y) printf("bx=%02u tx=%02u block=%02u [2] %02u -> %02u\n", bx, tx, i.x, shpfx[m + 1] + k.y + tx, tx);
+	if (i.y == i.w + 1) j.y += (shpfx[m + 1] - shpfx[m]) % i.y;
 
 	dim h;
 	if (tx < j.x) for (h = 0; h < f1.c; h++) shdata[h * j.x + tx] = data1[h * f1.n + shpfx[0] + k.x + tx];
-	if (tx < j.y) for (h = 0; h < f2.c; h++) shdata[j.x + h * j.y + tx] = data2[h * f2.n + shpfx[m + 1] + k.y + tx];
+	if (tx < j.y) for (h = 0; h < f2.c; h++) shdata[h * j.y + tx] = data2[h * f2.n + shpfx[m] + k.y + tx];
 	__syncthreads();
+
 }
 
 dim linearbinpacking(func f1, func f2, dim *hp, uint4 *o) {

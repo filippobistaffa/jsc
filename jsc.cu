@@ -1,26 +1,73 @@
 #include "jsc.h"
 
+__constant__ uint4 bd[CONSTANTSIZE / sizeof(uint4)];
+
 __global__ void histogramproduct(dim *h1, dim *h2, dim *hr, dim hn) {
 
 	dim tid = blockIdx.x * THREADSPERBLOCK + threadIdx.x;
 	if (tid < hn) hr[tid] = h1[tid] * h2[tid];
 }
 
-dim linearbinpacking(func f1, func f2, dim *hp, dim *o) {
+__global__ void computeoutput(func f1, func f2, chunk *data1, chunk *data2, dim *pfxh1, dim *pfxh2, dim *pfxhp) {
+
+	dim bx = blockIdx.x, tx = threadIdx.x;
+
+	__shared__ uint4 i;
+	if (!tx) i = bd[bx];
+	__syncthreads();
+
+	dim m = i.y ? 1 : i.z;
+	__shared__ dim shpfx[SHAREDSIZE / sizeof(dim)];
+	chunk *shdata = ((chunk *)shpfx) + CEIL(3 * (m + 1) * sizeof(dim), sizeof(chunk));
+	// assume THREADSPERBLOCK > m + 1
+	if (tx < m + 1 && (tx || i.x)) {
+		shpfx[tx] = pfxh1[i.x + tx - 1];
+		shpfx[tx + m + 1] = pfxh2[i.x + tx - 1];
+		shpfx[tx + 2 * m + 2] = pfxhp[i.x + tx - 1];
+	}
+	if (!i.x) shpfx[0] = shpfx[m + 1] = shpfx[2 * m + 2] = 0;
+	__syncthreads();
+
+	uint2 j, k;
+	if (i.y) {
+		j = make_uint2((shpfx[1] - shpfx[0]) / i.y, (shpfx[m + 2] - shpfx[m + 1]) / i.y);
+		k = make_uint2(j.x * i.z, j.y * i.w);
+	}
+	else {
+		j = make_uint2(shpfx[i.z] - shpfx[0], shpfx[i.z + m + 1] - shpfx[m + 1]);
+		k = make_uint2(0, 0);
+	}
+
+	if (i.y == i.z + 1) j.x += (shpfx[1] - shpfx[0]) % i.y;
+	if (i.y == i.w + 1) j.y += (shpfx[m + 2] - shpfx[m + 1]) % i.y;
+
+	//if (tx < j.x) printf("bx=%02u tx=%02u block=%02u [1] %02u -> %02u\n", bx, tx, i.x, shpfx[0] + k.x + tx, tx, data1[shpfx[0] + k.x + tx]);
+	//if (tx < j.y) printf("bx=%02u tx=%02u block=%02u [2] %02u -> %02u\n", bx, tx, i.x, shpfx[m + 1] + k.y + tx, tx);
+
+	dim h;
+	if (tx < j.x) for (h = 0; h < f1.c; h++) shdata[h * j.x + tx] = data1[h * f1.n + shpfx[0] + k.x + tx];
+	if (tx < j.y) for (h = 0; h < f2.c; h++) shdata[h * j.y + tx] = data2[h * f2.n + shpfx[m + 1] + k.y + tx];
+	__syncthreads();
+}
+
+dim linearbinpacking(func f1, func f2, dim *hp, uint4 *o) {
 
 	register size_t m, mb = MEMORY(0);
-	register dim i, j = 1;
+	register dim a, b, c, i, j = 0, k = 0;
 
-	for (i = 1; i < f1.hn; i++)
-		if ((m = MEMORY(i)) + mb > SHAREDSIZE) {
-			o[(j - 1) * 2 + 1] = CEIL(mb, SHAREDSIZE);
-			o[j++ * 2] = i;
+	for (i = 1; i <= f1.hn; i++)
+		if ((m = MEMORY(i)) + mb > SHAREDSIZE || i == f1.hn) {
+			a = c = CEIL(mb, SHAREDSIZE);
+			do {
+				b = c;
+				do o[j++] = make_uint4(k, c > 1 ? c : 0, c > 1 ? c - a : i - k, c > 1 ? c - b : 0);
+				while (--b);
+			} while (--a);
 			mb = m;
+			k = i;
 		}
 		else mb += m;
 
-	o[(j - 1) * 2 + 1] = CEIL(mb, SHAREDSIZE);
-	o[0] = 0;
 	return j;
 }
 
@@ -112,10 +159,13 @@ int main(int argc, char *argv[]) {
 	printf("%u matching rows\n", f1.n);
 	printf("%u matching rows\n", f2.n);
 
+	chunk *d1d, *d2d;
 	dim on, *h1d, *h2d, *hpd, *pfxh1d, *pfxh2d, *pfxhpd;
 	printf("Allocating... ");
 	fflush(stdout);
 	gettimeofday(&t1, NULL);
+	cudaMalloc(&d1d, sizeof(chunk) * f1.n * f1.c);
+	cudaMalloc(&d2d, sizeof(chunk) * f2.n * f2.c);
 	cudaMalloc(&h1d, sizeof(dim) * hn);
 	cudaMalloc(&h2d, sizeof(dim) * hn);
 	cudaMalloc(&hpd, sizeof(dim) * hn);
@@ -125,6 +175,8 @@ int main(int argc, char *argv[]) {
 	gettimeofday(&t2, NULL);
         printf("%f seconds\n", (double)(t2.tv_usec - t1.tv_usec) / 1e6 + t2.tv_sec - t1.tv_sec);
 
+	cudaMemcpy(d1d, f1.data, sizeof(chunk) * f1.n * f1.c, cudaMemcpyHostToDevice);
+	cudaMemcpy(d2d, f2.data, sizeof(chunk) * f2.n * f2.c, cudaMemcpyHostToDevice);
 	cudaMemcpy(h1d, f1.h, sizeof(dim) * hn, cudaMemcpyHostToDevice);
 	cudaMemcpy(h2d, f2.h, sizeof(dim) * hn, cudaMemcpyHostToDevice);
 
@@ -144,13 +196,18 @@ int main(int argc, char *argv[]) {
 	cudppDestroyPlan(pfxsum);
 	cudppDestroy(cudpp);
 
-	dim hp[hn], bn, *blocks = (dim *)malloc(sizeof(dim) * 2 * hn);
-	cudaMemcpy(hp, hpd, sizeof(dim) * hn, cudaMemcpyDeviceToHost);
-	bn = linearbinpacking(f1, f2, hp, blocks);
-	blocks = (dim *)realloc(blocks, sizeof(dim) * 2 * bn);
-
 	cudaMemcpy(&on, pfxhpd + hn - 1, sizeof(dim), cudaMemcpyDeviceToHost);
-	printf("Result size = %zu bytes\n", sizeof(chunk) * on * CEIL(f1.m + f2.m - f1.s, BITSPERCHUNK));
+	printf("Result size = %zu bytes (%u lines)\n", sizeof(chunk) * on * CEIL(f1.m + f2.m - f1.s, BITSPERCHUNK), on);
+
+	dim hp[hn], bn;
+	uint4 *bh = (uint4 *)malloc(sizeof(uint4) * on);
+	cudaMemcpy(hp, hpd, sizeof(dim) * hn, cudaMemcpyDeviceToHost);
+	bn = linearbinpacking(f1, f2, hp, bh);
+	bh = (uint4 *)realloc(bh, sizeof(uint4) * bn);
+	cudaMemcpyToSymbol(bd, bh, sizeof(uint4) * bn);
+	printf("Used constant memory = %zu bytes\n", sizeof(uint3) * bn);
+
+	computeoutput<<<bn, THREADSPERBLOCK>>>(f1, f2, d1d, d2d, pfxh1d, pfxh2d, pfxhpd);
 
 	puts("Checksum...");
 	printf("Checksum 1 = %u (size = %zu bytes)\n", crc32(f1.data, sizeof(chunk) * f1.n * f1.c), sizeof(chunk) * f1.n * f1.c);
@@ -158,6 +215,8 @@ int main(int argc, char *argv[]) {
 	printf("Checksum 2 = %u (size = %zu bytes)\n", crc32(f2.data, sizeof(chunk) * f2.n * f2.c), sizeof(chunk) * f2.n * f2.c);
 	printf("Checksum Histogram 2 = %u (size = %zu bytes)\n", crc32(f2.h, sizeof(dim) * f2.hn), sizeof(dim) * f2.hn);
 
+	cudaFree(d1d);
+	cudaFree(d2d);
 	cudaFree(h1d);
 	cudaFree(h2d);
 	cudaFree(hpd);

@@ -54,7 +54,7 @@ int main(int argc, char *argv[]) {
 	printf("%f seconds\n", (double)(t2.tv_usec - t1.tv_usec) / 1e6 + t2.tv_sec - t1.tv_sec);
 	free(c1);
 	free(c2);
-	
+
 	printf("Sort... ");
 	fflush(stdout);
 	gettimeofday(&t1, NULL);
@@ -116,6 +116,8 @@ int main(int argc, char *argv[]) {
         free(f2.data);
         free(f1.h);
         free(f2.h);
+        free(f1.v);
+        free(f2.v);
 
 	return 0;
 }

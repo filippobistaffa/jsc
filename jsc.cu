@@ -85,6 +85,8 @@ int main(int argc, char *argv[]) {
 	f2.c = CEIL(f2.m, BITSPERCHUNK);
 	f1.vars = (var *)malloc(sizeof(var) * f1.m);
 	f2.vars = (var *)malloc(sizeof(var) * f2.m);
+        f1.v = (value *)malloc(sizeof(value) * f1.n);
+        f2.v = (value *)malloc(sizeof(value) * f2.n);
 	f1.data = (chunk *)calloc(1, sizeof(chunk) * f1.n * f1.c);
 	f2.data = (chunk *)calloc(1, sizeof(chunk) * f2.n * f2.c);
 
@@ -96,10 +98,12 @@ int main(int argc, char *argv[]) {
 	printf("Random data... ");
 	fflush(stdout);
 	gettimeofday(&t1, NULL);
-	randomvars(f1);
-	randomdata(f1);
-	randomvars(f2);
-	randomdata(f2);
+        randomvars(f1);
+        randomvars(f2);
+        randomdata(f1);
+        randomdata(f2);
+        randomvalues(f1);
+        randomvalues(f2);
 	gettimeofday(&t2, NULL);
 	printf("%f seconds\n", (double)(t2.tv_usec - t1.tv_usec) / 1e6 + t2.tv_sec - t1.tv_sec);
 
@@ -158,12 +162,15 @@ int main(int argc, char *argv[]) {
 	printf("%u matching rows\n", f2.n);
 
 	chunk *d1d, *d2d;
+	value *v1d, *v2d;
 	dim on, *h1d, *h2d, *hpd, *pfxh1d, *pfxh2d, *pfxhpd;
 	printf("Allocating... ");
 	fflush(stdout);
 	gettimeofday(&t1, NULL);
 	cudaMalloc(&d1d, sizeof(chunk) * f1.n * f1.c);
 	cudaMalloc(&d2d, sizeof(chunk) * f2.n * f2.c);
+	cudaMalloc(&v1d, sizeof(value) * f1.n);
+        cudaMalloc(&v2d, sizeof(value) * f2.n);
 	cudaMalloc(&h1d, sizeof(dim) * hn);
 	cudaMalloc(&h2d, sizeof(dim) * hn);
 	cudaMalloc(&hpd, sizeof(dim) * hn);
@@ -175,6 +182,8 @@ int main(int argc, char *argv[]) {
 
 	cudaMemcpy(d1d, f1.data, sizeof(chunk) * f1.n * f1.c, cudaMemcpyHostToDevice);
 	cudaMemcpy(d2d, f2.data, sizeof(chunk) * f2.n * f2.c, cudaMemcpyHostToDevice);
+        cudaMemcpy(v1d, f1.v, sizeof(value) * f1.n, cudaMemcpyHostToDevice);
+        cudaMemcpy(v2d, f2.v, sizeof(value) * f2.n, cudaMemcpyHostToDevice);
 	cudaMemcpy(h1d, f1.h, sizeof(dim) * hn, cudaMemcpyHostToDevice);
 	cudaMemcpy(h2d, f2.h, sizeof(dim) * hn, cudaMemcpyHostToDevice);
 
@@ -219,6 +228,8 @@ int main(int argc, char *argv[]) {
 
 	cudaFree(d1d);
 	cudaFree(d2d);
+	cudaFree(v1d);
+	cudaFree(v2d);
 	cudaFree(h1d);
 	cudaFree(h2d);
 	cudaFree(hpd);
@@ -234,6 +245,8 @@ int main(int argc, char *argv[]) {
 	free(f2.data);
 	free(f1.h);
 	free(f2.h);
+        free(f1.v);
+        free(f2.v);
 
 	return 0;
 }

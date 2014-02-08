@@ -8,7 +8,7 @@ __global__ void histogramproduct(dim *h1, dim *h2, dim *hr, dim hn) {
 	if (tid < hn) hr[tid] = h1[tid] * h2[tid];
 }
 
-__global__ void computeoutput(func f1, func f2, chunk *data1, chunk *data2, dim *pfxh1, dim *pfxh2, dim *pfxhp) {
+__global__ void computeoutput(func f1, func f2, chunk *d1, chunk *d2, value *v1, value *v2, dim *pfxh1, dim *pfxh2, dim *pfxhp) {
 
 	dim bx = blockIdx.x, tx = threadIdx.x;
 
@@ -18,7 +18,7 @@ __global__ void computeoutput(func f1, func f2, chunk *data1, chunk *data2, dim 
 
 	dim m = i.y ? 2 : i.z + 1;
 	__shared__ dim shpfx[SHAREDSIZE / sizeof(dim)];
-	chunk *shdata = ((chunk *)shpfx) + CEIL(3 * m * sizeof(dim), sizeof(chunk));
+	chunk *shd = ((chunk *)shpfx) + CEIL(3 * m * sizeof(dim), sizeof(chunk));
 	// assume THREADSPERBLOCK > m + 1
 	if (tx < m && (tx || i.x)) {
 		shpfx[tx] = pfxh1[i.x + tx - 1];
@@ -42,9 +42,15 @@ __global__ void computeoutput(func f1, func f2, chunk *data1, chunk *data2, dim 
 	if (i.y == i.w + 1) j.y += (shpfx[m + 1] - shpfx[m]) % i.y;
 
 	dim h;
-	if (tx < j.x) for (h = 0; h < f1.c; h++) shdata[h * j.x + tx] = data1[h * f1.n + shpfx[0] + k.x + tx];
-	if (tx < j.y) for (h = 0; h < f2.c; h++) shdata[j.x + h * j.y + tx] = data2[h * f2.n + shpfx[m] + k.y + tx];
+	if (tx < j.x) for (h = 0; h < f1.c; h++) shd[h * j.x + tx] = d1[h * f1.n + shpfx[0] + k.x + tx];
+	if (tx < j.y) for (h = 0; h < f2.c; h++) shd[j.x + h * j.y + tx] = d2[h * f2.n + shpfx[m] + k.y + tx];
+
+	value *shv = ((value *)shd) + j.x + j.y + j.x * j.y;
+	if (tx < j.x) shv[tx] = v1[shpfx[0] + k.x + tx];
+	if (tx < j.y) shv[j.x + tx] = v2[shpfx[m] + k.y + tx];
+
 	__syncthreads();
+
 
 }
 
@@ -218,7 +224,7 @@ int main(int argc, char *argv[]) {
 	for (i = 0; i < hn; i++) printf("%u * %u = %u (%zu)\n", f1.h[i], f2.h[i], hp[i], MEMORY(i));
 	for (i = 0; i < bn; i++) printf("%u %u %u %u\n", bh[i].x, bh[i].y, bh[i].z, bh[i].w);
 
-	computeoutput<<<bn, THREADSPERBLOCK>>>(f1, f2, d1d, d2d, pfxh1d, pfxh2d, pfxhpd);
+	computeoutput<<<bn, THREADSPERBLOCK>>>(f1, f2, d1d, d2d, v1d, v2d, pfxh1d, pfxh2d, pfxhpd);
 
 	puts("Checksum...");
 	printf("Checksum 1 = %u (size = %zu bytes)\n", crc32(f1.data, sizeof(chunk) * f1.n * f1.c), sizeof(chunk) * f1.n * f1.c);

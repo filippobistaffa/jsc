@@ -17,11 +17,11 @@ __global__ void histogramproduct(dim *h1, dim *h2, dim *hr, dim hn) {
 	if (tid < hn) hr[tid] = h1[tid] * h2[tid];
 }
 
-__global__ void computeoutput(func f1, func f2, chunk *d1, chunk *d2, value *v1, value *v2, dim *pfxh1, dim *pfxh2, dim *pfxhp) {
+__global__ void computeoutput(func f1, func f2, chunk *d1, chunk *d2, chunk *d3, value *v1, value *v2, value *v3, dim *pfxh1, dim *pfxh2, dim *pfxhp, dim on) {
 
 	dim bx = blockIdx.x, tx = threadIdx.x;
 	uint4 i = bd[bx];
-	dim m = i.y ? 2 : i.z + 1;
+	dim h, m = i.y ? 2 : i.z + 1;
 	__shared__ dim shpfx[SHAREDSIZE / sizeof(dim)];
 	chunk *shd = ((chunk *)shpfx) + CEIL(3 * m * sizeof(dim), sizeof(chunk));
 
@@ -35,10 +35,11 @@ __global__ void computeoutput(func f1, func f2, chunk *d1, chunk *d2, value *v1,
 	__syncthreads();
 
 	uint2 k;
-	uint3 j, l = make_uint3(shpfx[0], shpfx[m], shpfx[2 * m]);
+	uint3 o, j, l = make_uint3(shpfx[0], shpfx[m], shpfx[2 * m]);
+	o.x = 0;
 
 	if (i.y) {
-		j = make_uint3((shpfx[1] - l.x) / i.y, (shpfx[m + 1] - l.y) / i.y, 0);
+		j = make_uint3((o.y = shpfx[1] - l.x) / i.y, (o.z = shpfx[m + 1] - l.y) / i.y, 0);
 		k = make_uint2(j.x * i.z, j.y * i.w);
 	}
 	else {
@@ -46,11 +47,14 @@ __global__ void computeoutput(func f1, func f2, chunk *d1, chunk *d2, value *v1,
 		k = make_uint2(0, 0);
 	}
 
-	if (i.y == i.z + 1) j.x += (shpfx[1] - l.x) % i.y;
-	if (i.y == i.w + 1) j.y += (shpfx[m + 1] - l.y) % i.y;
+	if (i.y) o.x = (i.y * i.z + i.w) * j.x * j.y + i.z * j.x * (o.z % i.y);
+	if (i.y == i.z + 1) {
+		j.x += o.y % i.y;
+		o.x += i.w * j.y * (o.y % i.y);
+	}
+	if (i.y == i.w + 1) j.y += o.z % i.y;
 	if (i.y) j.z = j.x * j.y;
 
-	dim h;
 	if (tx < j.x) for (h = 0; h < f1.c; h++) shd[h * j.x + tx] = d1[h * f1.n + l.x + k.x + tx];
 	if (tx < j.y) for (h = 0; h < f2.c; h++) shd[j.x * f1.c + h * j.y + tx] = d2[h * f2.n + l.y + k.y + tx];
 
@@ -84,6 +88,14 @@ __global__ void computeoutput(func f1, func f2, chunk *d1, chunk *d2, value *v1,
 			t = c >> BITSPERCHUNK - i.z;
 			a = b;
 		}
+
+		v3[l.z + o.x + tx] = shv[j.x + j.y + tx];
+	}
+
+	__syncthreads();
+
+	if (tx < j.z * (f1.m / BITSPERCHUNK)) {
+		if (bx == 10) printf("bx=%02u tx=%02u %02u\n", bx, tx, l.z + o.x + (tx / j.z) * on + tx % j.z);
 	}
 }
 
@@ -201,8 +213,8 @@ int main(int argc, char *argv[]) {
 	printf("%u matching rows\n", f1.n);
 	printf("%u matching rows\n", f2.n);
 
-	chunk *d1d, *d2d;
-	value *v1d, *v2d;
+	chunk *d1d, *d2d, *d3d;
+	value *v1d, *v2d, *v3d;
 	dim on, *h1d, *h2d, *hpd, *pfxh1d, *pfxh2d, *pfxhpd;
 	printf("Allocating... ");
 	fflush(stdout);
@@ -245,6 +257,8 @@ int main(int argc, char *argv[]) {
 
 	cudaMemcpy(&on, pfxhpd + hn - 1, sizeof(dim), cudaMemcpyDeviceToHost);
 	printf("Result size = %zu bytes (%u lines)\n", sizeof(chunk) * on * OUTPUTC, on);
+	cudaMalloc(&d3d, sizeof(chunk) * on * OUTPUTC);
+	cudaMalloc(&v3d, sizeof(value) * on);
 
 	dim hp[hn], bn;
 	uint4 *bh = (uint4 *)malloc(sizeof(uint4) * on);
@@ -258,7 +272,7 @@ int main(int argc, char *argv[]) {
 	for (i = 0; i < hn; i++) printf("%u * %u = %u (%zu)\n", f1.h[i], f2.h[i], hp[i], MEMORY(i));
 	for (i = 0; i < bn; i++) printf("%u %u %u %u\n", bh[i].x, bh[i].y, bh[i].z, bh[i].w);
 
-	computeoutput<<<bn, THREADSPERBLOCK>>>(f1, f2, d1d, d2d, v1d, v2d, pfxh1d, pfxh2d, pfxhpd);
+	computeoutput<<<bn, THREADSPERBLOCK>>>(f1, f2, d1d, d2d, d3d, v1d, v2d, v3d, pfxh1d, pfxh2d, pfxhpd, on);
 	gpuerrorcheck(cudaPeekAtLastError());
 	gpuerrorcheck(cudaDeviceSynchronize());
 
@@ -270,8 +284,10 @@ int main(int argc, char *argv[]) {
 
 	cudaFree(d1d);
 	cudaFree(d2d);
+	cudaFree(d3d);
 	cudaFree(v1d);
 	cudaFree(v2d);
+	cudaFree(v3d);
 	cudaFree(h1d);
 	cudaFree(h2d);
 	cudaFree(hpd);

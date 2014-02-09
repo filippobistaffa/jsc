@@ -24,6 +24,7 @@ __global__ void computeoutput(func f1, func f2, chunk *d1, chunk *d2, value *v1,
 	dim m = i.y ? 2 : i.z + 1;
 	__shared__ dim shpfx[SHAREDSIZE / sizeof(dim)];
 	chunk *shd = ((chunk *)shpfx) + CEIL(3 * m * sizeof(dim), sizeof(chunk));
+
 	// assume THREADSPERBLOCK > m + 1
 	if (tx < m && (tx || i.x)) {
 		shpfx[tx] = pfxh1[i.x + tx - 1];
@@ -33,8 +34,9 @@ __global__ void computeoutput(func f1, func f2, chunk *d1, chunk *d2, value *v1,
 	if (!i.x) shpfx[0] = shpfx[m] = shpfx[2 * m] = 0;
 	__syncthreads();
 
-	uint3 j, l = make_uint3(shpfx[0], shpfx[m], shpfx[2 * m]);
 	uint2 k;
+	uint3 j, l = make_uint3(shpfx[0], shpfx[m], shpfx[2 * m]);
+
 	if (i.y) {
 		j = make_uint3((shpfx[1] - l.x) / i.y, (shpfx[m + 1] - l.y) / i.y, 0);
 		k = make_uint2(j.x * i.z, j.y * i.w);
@@ -52,38 +54,33 @@ __global__ void computeoutput(func f1, func f2, chunk *d1, chunk *d2, value *v1,
 	if (tx < j.x) for (h = 0; h < f1.c; h++) shd[h * j.x + tx] = d1[h * f1.n + l.x + k.x + tx];
 	if (tx < j.y) for (h = 0; h < f2.c; h++) shd[j.x * f1.c + h * j.y + tx] = d2[h * f2.n + l.y + k.y + tx];
 
-	//value *shv = (value *)(shd + j.x * f1.c + j.y * f2.c + j.z * (OUTPUTC - f1.m / BITSPERCHUNK));
-	//if (tx < j.x) shv[tx] = v1[l.x + k.x + tx];
-	//if (tx < j.y) shv[j.x + tx] = v2[l.y + k.y + tx];
-
-	//if (!tx && !bx) printf("%llu %llu\n", shd[0], shd[9]);
-
+	value *shv = (value *)(shd + j.x * f1.c + j.y * f2.c + j.z * (OUTPUTC - f1.m / BITSPERCHUNK));
+	if (tx < j.x) shv[tx] = v1[l.x + k.x + tx];
+	if (tx < j.y) shv[j.x + tx] = v2[l.y + k.y + tx];
 	//if (!tx && bx == 5) printf("shd max chunks = %llu (%llu - %llu), 1 = %u (%u * %u), 2 = %u (%u * %u), %u %u\n", SHAREDSIZE / sizeof(chunk) - CEIL(3 * m * sizeof(dim), sizeof(chunk)), SHAREDSIZE / sizeof(chunk), CEIL(3 * m * sizeof(dim), sizeof(chunk)), j.x * f1.c, j.x, f1.c, j.y * f2.c, j.y, f2.c, j.z, OUTPUTC - f1.m / BITSPERCHUNK);
 
 	__syncthreads();
 
-	if (tx < j.z && bx == 5) {
+	if (tx < j.z) {
 		k.x = 0;
-		for (; k.x < m - 1; k.x++)
-			if (shpfx[k.x + 1 + 2 * m] - l.z > tx) break;
+		for (; k.x < m - 1; k.x++) if (shpfx[k.x + 1 + 2 * m] - l.z > tx) break;
 		k.y = tx - (shpfx[k.x + 2 * m] - l.z);
 		//i = make_uint4(shpfx[k.x] - shpfx[0], shpfx[k.x + m] - shpfx[m] + j.x, shpfx[k.x + 1] - shpfx[k.x], shpfx[k.x + 1 + m] - shpfx[k.x + m]);
 		i = make_uint4(shpfx[k.x], shpfx[k.x + 1], shpfx[k.x + m], shpfx[k.x + m + 1]); // fetch useful data from shared memory
-		//shv[j.x + j.y + tx] = shv[] + shv[];
+		h = i.z - l.y + j.x;
 		i = make_uint4(i.x - l.x, i.z - l.y + j.x * f1.c, i.y - i.x, i.w - i.z);
-		//printf("bx=%02u tx=%02u i.x=%02u i.y=%02u (-%02u), k.x=%02u k.y=%02u i.z=%02u i.w=%02u %02u %02u\n", bx, tx, i.x + k.y / i.w, i.y + k.y % i.w, j.x * f1.c, k.x, k.y, i.z, i.w, k.y / i.w, k.y % i.w);
+		shv[j.x + j.y + tx] = shv[i.x + k.y / i.w] + shv[h + k.y % i.w];
+		//printf("bx=%02u tx=%02u i.x=%02u i.y=%02u (-%02u), k.x=%02u k.y=%02u i.z=%02u i.w=%02u %02u %02u %f\n", bx, tx, i.x + k.y / i.w, i.y + k.y % i.w, j.x * f1.c, k.x, k.y, i.z, i.w, k.y / i.w, k.y % i.w, shv[j.x + j.y + tx]);
 		i = make_uint4(i.x + k.y / i.w, i.y + k.y % i.w, f1.m % BITSPERCHUNK, f2.s % BITSPERCHUNK);
 		chunk a, b, c, t = shd[i.x + j.x * (f1.c - 1)];
 		h = f2.s / BITSPERCHUNK;
 		a = shd[i.y + h * j.y];
-		//printf("bx=%02u tx=%02u d1=%02u d2=%02u h=%u output[%u]=%llu\n", bx, tx, i.x, i.y, h, j.x * f1.c + j.y * f2.c + h * j.z + tx, t);
-
 		for (; h < f2.c; h++) {
 			b = h == f2.c - 1 ? 0 : shd[i.y + (h + 1) * j.y];
 			c = a >> i.w | b << BITSPERCHUNK - i.w;
 			t = t | c << i.z;
 			shd[j.x * f1.c + j.y * f2.c + h * j.z + tx] = t;
-			printf("bx=%02u tx=%02u d1=%02u d2=%02u h=%u output[%u]=%llu\n", bx, tx, i.x, i.y, h, j.x * f1.c + j.y * f2.c + h * j.z + tx, t);
+			//printf("bx=%02u tx=%02u d1=%02u d2=%02u h=%u output[%u]=%llu\n", bx, tx, i.x, i.y, h, j.x * f1.c + j.y * f2.c + h * j.z + tx, t);
 			t = c >> BITSPERCHUNK - i.z;
 			a = b;
 		}

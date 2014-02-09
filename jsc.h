@@ -21,7 +21,7 @@
 #define THREADSPERBLOCK 512
 #define MAXTHREADSPERBLOCK 1024
 #define MEMORY(I) ((sizeof(chunk) * f1.c + sizeof(value)) * f1.h[I] + (sizeof(chunk) * f2.c + sizeof(value)) * f2.h[I] + \
-		   (sizeof(chunk) * CEIL(f1.m + f2.m - f1.s, BITSPERCHUNK) + sizeof(value)) * hp[I] + sizeof(dim) * 3)
+		   (sizeof(chunk) * (OUTPUTC - f1.m / BITSPERCHUNK) + sizeof(value)) * hp[I] + sizeof(dim) * 3)
 
 #endif
 

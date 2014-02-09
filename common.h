@@ -10,6 +10,8 @@
 #define GETMACRO(_1, _2, _3, NAME, ...) NAME
 #define GET(...) GETMACRO(__VA_ARGS__, GETC, GETR)(__VA_ARGS__)
 
+#define OUTPUTC CEIL(f1.m + f2.m - f1.s, BITSPERCHUNK)
+
 #ifdef __cplusplus
 extern "C"
 #endif

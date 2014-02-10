@@ -109,21 +109,22 @@ __global__ void computeoutput(func f1, func f2, chunk *d1, chunk *d2, chunk *d3,
 
 dim linearbinpacking(func f1, func f2, dim *hp, uint4 *o) {
 
+	register dim a, b, c, i, t, j = 0, k = 0, tb = hp[0];
 	register size_t m, mb = MEMORY(0) + 3 * sizeof(dim);
-	register dim a, b, c, i, j = 0, k = 0;
 
 	for (i = 1; i <= f1.hn; i++)
-		if ((m = MEMORY(i)) + mb > SHAREDSIZE || i == f1.hn) {
-			a = c = CEIL(mb, SHAREDSIZE);
+		if ((m = MEMORY(i)) + mb > SHAREDSIZE | (t = hp[i]) + tb > THREADSPERBLOCK || i == f1.hn) {
+			a = c = (m + mb > SHAREDSIZE) ? CEIL(mb, SHAREDSIZE) : CEIL(tb, THREADSPERBLOCK);
 			do {
 				b = c;
 				do o[j++] = make_uint4(k, c > 1 ? c : 0, c > 1 ? c - a : i - k, c > 1 ? c - b : 0);
 				while (--b);
 			} while (--a);
 			mb = m + 3 * sizeof(dim);
+			tb = t;
 			k = i;
 		}
-		else mb += m;
+		else mb += m, tb += t;
 
 	return j;
 }
@@ -137,7 +138,7 @@ int main(int argc, char *argv[]) {
 
 	f1.n = 1000;
 	f1.m = 80;
-	f2.n = 300;
+	f2.n = 3000;
 	f2.m = 100;
 
 	f1.c = CEIL(f1.m, BITSPERCHUNK);
@@ -293,7 +294,9 @@ int main(int argc, char *argv[]) {
 	// Order output table for debugging purposes
 	f3.s = f3.m;
 	f3.mask = (1ULL << (f3.s % BITSPERCHUNK)) - 1;
-	sort(f3);
+	//sort(f3);
+	//print(f1, NULL);
+	//print(f2, NULL);
 	//print(f3, NULL);
 
 	puts("Checksum...");

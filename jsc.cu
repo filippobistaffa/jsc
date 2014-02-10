@@ -25,7 +25,7 @@ __global__ void computeoutput(func f1, func f2, chunk *d1, chunk *d2, chunk *d3,
 	__shared__ dim shpfx[SHAREDSIZE / sizeof(dim)];
 	chunk *shd = ((chunk *)shpfx) + CEIL(3 * m * sizeof(dim), sizeof(chunk));
 
-	// assume THREADSPERBLOCK > m + 1
+	assert(THREADSPERBLOCK >= m);
 	if (tx < m && (tx || i.x)) {
 		shpfx[tx] = pfxh1[i.x + tx - 1];
 		shpfx[tx + m ] = pfxh2[i.x + tx - 1];
@@ -54,7 +54,10 @@ __global__ void computeoutput(func f1, func f2, chunk *d1, chunk *d2, chunk *d3,
 	}
 	if (i.y == i.w + 1) j.y += o.z % i.y;
 	if (i.y) j.z = j.x * j.y;
+	assert(THREADSPERBLOCK >= j.z);
 
+	//if (tx < j.x * f1.c) shd[tx] = d1[(tx / j.x) * f1.n + l.x + k.x + tx % j.x];
+	//if (tx < j.y * f2.c) shd[j.x * f1.c + tx] = d2[(tx / j.y) * f2.n + l.y + k.y + tx % j.y];
 	if (tx < j.x) for (h = 0; h < f1.c; h++) shd[h * j.x + tx] = d1[h * f1.n + l.x + k.x + tx];
 	if (tx < j.y) for (h = 0; h < f2.c; h++) shd[j.x * f1.c + h * j.y + tx] = d2[h * f2.n + l.y + k.y + tx];
 
@@ -132,9 +135,9 @@ int main(int argc, char *argv[]) {
 	init_genrand64(SEED);
 	srand(SEED);
 
-	f1.n = 100;
+	f1.n = 1000;
 	f1.m = 80;
-	f2.n = 30;
+	f2.n = 300;
 	f2.m = 100;
 
 	f1.c = CEIL(f1.m, BITSPERCHUNK);
@@ -273,10 +276,11 @@ int main(int argc, char *argv[]) {
 	bn = linearbinpacking(f1, f2, hp, bh);
 	bh = (uint4 *)realloc(bh, sizeof(uint4) * bn);
 	cudaMemcpyToSymbol(bd, bh, sizeof(uint4) * bn);
-	printf("Used constant memory = %zu bytes\n", sizeof(uint3) * bn);
+	printf("Needed constant memory = %zu bytes (Max = %u bytes)\n", sizeof(uint4) * bn, CONSTANTSIZE);
+	assert(CONSTANTSIZE > sizeof(uint4) * bn);
 
 	dim i;
-	for (i = 0; i < hn; i++) printf("%u * %u = %u (%zu)\n", f1.h[i], f2.h[i], hp[i], MEMORY(i));
+	for (i = 0; i < hn; i++) printf("%u * %u = %u (%zu bytes)\n", f1.h[i], f2.h[i], hp[i], MEMORY(i));
 	for (i = 0; i < bn; i++) printf("%u %u %u %u\n", bh[i].x, bh[i].y, bh[i].z, bh[i].w);
 
 	computeoutput<<<bn, THREADSPERBLOCK>>>(f1, f2, d1d, d2d, d3d, v1d, v2d, v3d, pfxh1d, pfxh2d, pfxhpd, f3.n);

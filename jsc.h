@@ -16,9 +16,9 @@
 #ifdef __cplusplus // CUDA
 
 #include <cudpp.h>
-#define SHAREDSIZE 2048
+#define SHAREDSIZE (32 * 1024)
 #define CONSTANTSIZE (48 * 1024)
-#define THREADSPERBLOCK 512
+#define THREADSPERBLOCK 1024
 #define MAXTHREADSPERBLOCK 1024
 #define MEMORY(I) ((sizeof(chunk) * f1.c + sizeof(value)) * f1.h[I] + (sizeof(chunk) * f2.c + sizeof(value)) * f2.h[I] + \
 		   (sizeof(chunk) * (OUTPUTC - f1.m / BITSPERCHUNK) + sizeof(value)) * hp[I] + sizeof(dim) * 3)

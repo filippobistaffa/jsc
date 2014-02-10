@@ -267,9 +267,11 @@ int main(int argc, char *argv[]) {
 	cudaMalloc(&d3d, sizeof(chunk) * f3.n * f3.c);
 	cudaMalloc(&v3d, sizeof(value) * f3.n);
 
+        f3.v = (value *)malloc(sizeof(value) * f3.n);
         f3.data = (chunk *)malloc(sizeof(chunk) * f3.n * f3.c);
 	f3.vars = (var *)malloc(sizeof(var) * (f3.m = f1.m + f2.m - f1.s));
-        f3.v = (value *)malloc(sizeof(value) * f3.n);
+	memcpy(f3.vars, f1.vars, sizeof(var) * f1.m);
+	memcpy(f3.vars + f1.m, f2.vars + f2.s, sizeof(var) * (f2.m - f1.s));
 
 	dim hp[hn], bn;
 	uint4 *bh = (uint4 *)malloc(sizeof(uint4) * f3.n);
@@ -295,9 +297,9 @@ int main(int argc, char *argv[]) {
 	f3.s = f3.m;
 	f3.mask = (1ULL << (f3.s % BITSPERCHUNK)) - 1;
 	//sort(f3);
-	//print(f1, NULL);
-	//print(f2, NULL);
-	//print(f3, NULL);
+	print(f1, NULL);
+	print(f2, NULL);
+	print(f3, NULL);
 
 	puts("Checksum...");
 	printf("Checksum Data 1 = %u (size = %zu bytes)\n", crc32(f1.data, sizeof(chunk) * f1.n * f1.c), sizeof(chunk) * f1.n * f1.c);

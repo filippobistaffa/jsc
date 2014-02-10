@@ -61,21 +61,30 @@ __global__ void computeoutput(func f1, func f2, chunk *d1, chunk *d2, chunk *d3,
 	value *shv = (value *)(shd + j.x * f1.c + j.y * f2.c + j.z * (OUTPUTC - f1.m / BITSPERCHUNK));
 	if (tx < j.x) shv[tx] = v1[l.x + k.x + tx];
 	if (tx < j.y) shv[j.x + tx] = v2[l.y + k.y + tx];
-	//if (!tx && bx == 5) printf("shd max chunks = %llu (%llu - %llu), 1 = %u (%u * %u), 2 = %u (%u * %u), %u %u\n", SHAREDSIZE / sizeof(chunk) - CEIL(3 * m * sizeof(dim), sizeof(chunk)), SHAREDSIZE / sizeof(chunk), CEIL(3 * m * sizeof(dim), sizeof(chunk)), j.x * f1.c, j.x, f1.c, j.y * f2.c, j.y, f2.c, j.z, OUTPUTC - f1.m / BITSPERCHUNK);
 
 	__syncthreads();
 
 	if (tx < j.z) {
-		k.x = 0;
-		for (; k.x < m - 1; k.x++) if (shpfx[k.x + 1 + 2 * m] - l.z > tx) break;
-		k.y = tx - (shpfx[k.x + 2 * m] - l.z);
-		//i = make_uint4(shpfx[k.x] - shpfx[0], shpfx[k.x + m] - shpfx[m] + j.x, shpfx[k.x + 1] - shpfx[k.x], shpfx[k.x + 1 + m] - shpfx[k.x + m]);
-		i = make_uint4(shpfx[k.x], shpfx[k.x + 1], shpfx[k.x + m], shpfx[k.x + m + 1]); // fetch useful data from shared memory
-		h = i.z - l.y + j.x;
-		i = make_uint4(i.x - l.x, i.z - l.y + j.x * f1.c, i.y - i.x, i.w - i.z);
-		shv[j.x + j.y + tx] = shv[i.x + k.y / i.w] + shv[h + k.y % i.w];
-		//printf("bx=%02u tx=%02u i.x=%02u i.y=%02u (-%02u), k.x=%02u k.y=%02u i.z=%02u i.w=%02u %02u %02u %f\n", bx, tx, i.x + k.y / i.w, i.y + k.y % i.w, j.x * f1.c, k.x, k.y, i.z, i.w, k.y / i.w, k.y % i.w, shv[j.x + j.y + tx]);
-		i = make_uint4(i.x + k.y / i.w, i.y + k.y % i.w, f1.m % BITSPERCHUNK, f2.s % BITSPERCHUNK);
+		o.y = 0;
+		if (i.y || i.z == 1) {
+			i = make_uint4(0, j.x * f1.c, j.x, j.y);
+			o.z = tx;
+			h = j.x;
+		} else {
+			for (; o.y < m - 1; o.y++) if (shpfx[o.y + 1 + 2 * m] - l.z > tx) break;
+			o.z = tx - (shpfx[o.y + 2 * m] - l.z);
+			i = make_uint4(shpfx[o.y], shpfx[o.y + 1], shpfx[o.y + m], shpfx[o.y + m + 1]); // fetch useful data from shared memory
+			h = i.z - l.y + j.x;
+			i = make_uint4(i.x - l.x, i.z - l.y + j.x * f1.c, i.y - i.x, i.w - i.z);
+		}
+		// o.y = which of the n groups of this block this thread belongs
+		// o.z = index of this thread w.r.t. his group (in this block)
+		// i.x = start of input 1 row for this group
+		// i.y = start of input 2 row for this group
+		// i.z = total number of input 1 rows for this group
+		// i.w = total number of input 2 rows for this group
+		shv[j.x + j.y + tx] = shv[i.x + o.z / i.w] + shv[h + o.z % i.w];
+		i = make_uint4(i.x + o.z / i.w, i.y + o.z % i.w, f1.m % BITSPERCHUNK, f2.s % BITSPERCHUNK);
 		chunk a, b, c, t = shd[i.x + j.x * (f1.c - 1)];
 		h = f2.s / BITSPERCHUNK;
 		a = shd[i.y + h * j.y];
@@ -84,18 +93,14 @@ __global__ void computeoutput(func f1, func f2, chunk *d1, chunk *d2, chunk *d3,
 			c = a >> i.w | b << BITSPERCHUNK - i.w;
 			t = t | c << i.z;
 			shd[j.x * f1.c + j.y * f2.c + h * j.z + tx] = t;
-			//printf("bx=%02u tx=%02u d1=%02u d2=%02u h=%u output[%u]=%llu\n", bx, tx, i.x, i.y, h, j.x * f1.c + j.y * f2.c + h * j.z + tx, t);
+			//printf("bx=%02u tx=%02u d1=%02u d2=%02u (-%02u) h=%u output[%u]=%llu\n", bx, tx, i.x, i.y, j.x *f1.c, h, j.x * f1.c + j.y * f2.c + h * j.z + tx, t);
 			t = c >> BITSPERCHUNK - i.z;
 			a = b;
 		}
 
 		v3[l.z + o.x + tx] = shv[j.x + j.y + tx];
-	}
-
-	__syncthreads();
-
-	if (tx < j.z * (f1.m / BITSPERCHUNK)) {
-		if (bx == 10) printf("bx=%02u tx=%02u %02u\n", bx, tx, l.z + o.x + (tx / j.z) * on + tx % j.z);
+		for (h = 0; h < f1.m / BITSPERCHUNK; h++) d3[l.z + o.x + h * on + tx] = shd[i.x + h * j.x];
+		for (; h < OUTPUTC; h++) d3[l.z + o.x + h * on + tx] = shd[j.x * f1.c + j.y * f2.c + (h - f1.m / BITSPERCHUNK) * j.z + tx];
 	}
 }
 
@@ -122,7 +127,7 @@ dim linearbinpacking(func f1, func f2, dim *hp, uint4 *o) {
 
 int main(int argc, char *argv[]) {
 
-	func f1, f2;
+	func f1, f2, f3;
 	struct timeval t1, t2;
 	init_genrand64(SEED);
 	srand(SEED);
@@ -162,9 +167,10 @@ int main(int argc, char *argv[]) {
 	chunk *c2 = (chunk *)calloc(f2.c, sizeof(chunk));
 	sharedmasks(&f1, c1, &f2, c2);
 
-	f1.mask = f2.mask = (1ULL << (f1.s % BITSPERCHUNK)) - 1;
+	f1.mask = f2.mask = f3.mask = (1ULL << (f1.s % BITSPERCHUNK)) - 1;
 	printf("%u shared variables\n", f1.s);
 	if (!f1.s) return 1;
+	f3.s = f1.s;
 
 	printf("Shift & Reorder... ");
 	fflush(stdout);
@@ -182,9 +188,6 @@ int main(int argc, char *argv[]) {
 	sort(f2);
 	gettimeofday(&t2, NULL);
 	printf("%f seconds\n", (double)(t2.tv_usec - t1.tv_usec) / 1e6 + t2.tv_sec - t1.tv_sec);
-
-	print(f1, c1);
-	print(f2, c2);
 
 	printf("%u unique combinations\n", f1.hn = uniquecombinations(f1));
 	printf("%u unique combinations\n", f2.hn = uniquecombinations(f2));
@@ -215,7 +218,7 @@ int main(int argc, char *argv[]) {
 
 	chunk *d1d, *d2d, *d3d;
 	value *v1d, *v2d, *v3d;
-	dim on, *h1d, *h2d, *hpd, *pfxh1d, *pfxh2d, *pfxhpd;
+	dim *h1d, *h2d, *hpd, *pfxh1d, *pfxh2d, *pfxhpd;
 	printf("Allocating... ");
 	fflush(stdout);
 	gettimeofday(&t1, NULL);
@@ -255,13 +258,17 @@ int main(int argc, char *argv[]) {
 	cudppDestroyPlan(pfxsum);
 	cudppDestroy(cudpp);
 
-	cudaMemcpy(&on, pfxhpd + hn - 1, sizeof(dim), cudaMemcpyDeviceToHost);
-	printf("Result size = %zu bytes (%u lines)\n", sizeof(chunk) * on * OUTPUTC, on);
-	cudaMalloc(&d3d, sizeof(chunk) * on * OUTPUTC);
-	cudaMalloc(&v3d, sizeof(value) * on);
+	cudaMemcpy(&f3.n, pfxhpd + hn - 1, sizeof(dim), cudaMemcpyDeviceToHost);
+	printf("Result size = %zu bytes (%u lines)\n", sizeof(chunk) * f3.n * (f3.c = OUTPUTC), f3.n);
+	cudaMalloc(&d3d, sizeof(chunk) * f3.n * f3.c);
+	cudaMalloc(&v3d, sizeof(value) * f3.n);
+
+        f3.data = (chunk *)malloc(sizeof(chunk) * f3.n * f3.c);
+	f3.vars = (var *)malloc(sizeof(var) * (f3.m = f1.m + f2.m - f1.s));
+        f3.v = (value *)malloc(sizeof(value) * f3.n);
 
 	dim hp[hn], bn;
-	uint4 *bh = (uint4 *)malloc(sizeof(uint4) * on);
+	uint4 *bh = (uint4 *)malloc(sizeof(uint4) * f3.n);
 	cudaMemcpy(hp, hpd, sizeof(dim) * hn, cudaMemcpyDeviceToHost);
 	bn = linearbinpacking(f1, f2, hp, bh);
 	bh = (uint4 *)realloc(bh, sizeof(uint4) * bn);
@@ -272,15 +279,28 @@ int main(int argc, char *argv[]) {
 	for (i = 0; i < hn; i++) printf("%u * %u = %u (%zu)\n", f1.h[i], f2.h[i], hp[i], MEMORY(i));
 	for (i = 0; i < bn; i++) printf("%u %u %u %u\n", bh[i].x, bh[i].y, bh[i].z, bh[i].w);
 
-	computeoutput<<<bn, THREADSPERBLOCK>>>(f1, f2, d1d, d2d, d3d, v1d, v2d, v3d, pfxh1d, pfxh2d, pfxhpd, on);
+	computeoutput<<<bn, THREADSPERBLOCK>>>(f1, f2, d1d, d2d, d3d, v1d, v2d, v3d, pfxh1d, pfxh2d, pfxhpd, f3.n);
 	gpuerrorcheck(cudaPeekAtLastError());
 	gpuerrorcheck(cudaDeviceSynchronize());
 
+	cudaMemcpy(f3.data, d3d, sizeof(chunk) * f3.n * f3.c, cudaMemcpyDeviceToHost);
+	cudaMemcpy(f3.v, v3d, sizeof(value) * f3.n, cudaMemcpyDeviceToHost);
+
+	// Order output table for debugging purposes
+	f3.s = f3.m;
+	f3.mask = (1ULL << (f3.s % BITSPERCHUNK)) - 1;
+	sort(f3);
+	//print(f3, NULL);
+
 	puts("Checksum...");
-	printf("Checksum 1 = %u (size = %zu bytes)\n", crc32(f1.data, sizeof(chunk) * f1.n * f1.c), sizeof(chunk) * f1.n * f1.c);
+	printf("Checksum Data 1 = %u (size = %zu bytes)\n", crc32(f1.data, sizeof(chunk) * f1.n * f1.c), sizeof(chunk) * f1.n * f1.c);
+	printf("Checksum Values 1 = %u (size = %zu bytes)\n", crc32(f1.v, sizeof(value) * f1.n), sizeof(value) * f1.n);
 	printf("Checksum Histogram 1 = %u (size = %zu bytes)\n", crc32(f1.h, sizeof(dim) * f1.hn), sizeof(dim) * f1.hn);
-	printf("Checksum 2 = %u (size = %zu bytes)\n", crc32(f2.data, sizeof(chunk) * f2.n * f2.c), sizeof(chunk) * f2.n * f2.c);
+	printf("Checksum Data 2 = %u (size = %zu bytes)\n", crc32(f2.data, sizeof(chunk) * f2.n * f2.c), sizeof(chunk) * f2.n * f2.c);
+	printf("Checksum Values 2 = %u (size = %zu bytes)\n", crc32(f2.v, sizeof(value) * f2.n), sizeof(value) * f2.n);
 	printf("Checksum Histogram 2 = %u (size = %zu bytes)\n", crc32(f2.h, sizeof(dim) * f2.hn), sizeof(dim) * f2.hn);
+	printf("Checksum Output Data = %u (size = %zu bytes)\n", crc32(f3.data, sizeof(chunk) * f3.n * f3.c), sizeof(chunk) * f3.n * f3.c);
+	printf("Checksum Output Values = %u (size = %zu bytes)\n", crc32(f3.v, sizeof(value) * f3.n), sizeof(value) * f3.n);
 
 	cudaFree(d1d);
 	cudaFree(d2d);
@@ -298,13 +318,16 @@ int main(int argc, char *argv[]) {
 	free(f1.hmask);
 	free(f2.hmask);
 	free(f1.vars);
-	free(f1.data);
 	free(f2.vars);
+	free(f3.vars);
+	free(f1.data);
 	free(f2.data);
-	free(f1.h);
-	free(f2.h);
+	free(f3.data);
         free(f1.v);
         free(f2.v);
+	free(f3.v);
+	free(f1.h);
+	free(f2.h);
 
 	return 0;
 }

@@ -1,6 +1,6 @@
 #include "jsc.h"
 
-__constant__ uint4 bd[CONSTANTSIZE / sizeof(uint4)];
+__constant__ uint3 bd[CONSTANTSIZE / sizeof(uint3)];
 
 #define gpuerrorcheck(ans) { gpuassert((ans), __FILE__, __LINE__); }
 inline void gpuassert(cudaError_t code, char *file, int line, bool abort = true) {
@@ -20,7 +20,9 @@ __global__ void histogramproduct(dim *h1, dim *h2, dim *hr, dim hn) {
 __global__ void computeoutput(func f1, func f2, chunk *d1, chunk *d2, chunk *d3, value *v1, value *v2, value *v3, dim *pfxh1, dim *pfxh2, dim *pfxhp, dim on) {
 
 	dim bx = blockIdx.x, tx = threadIdx.x;
-	uint4 i = bd[bx];
+	uint2 k;
+	uint3 j, l, o = bd[bx];
+	uint4 i = make_uint4(o.x, o.y, o.z / max(o.y, 1), o.z % max(o.y, 1));
 	dim h, m = i.y ? 2 : i.z + 1;
 	__shared__ dim shpfx[SHAREDSIZE / sizeof(dim)];
 	chunk *shd = ((chunk *)shpfx) + CEIL(3 * m * sizeof(dim), sizeof(chunk));
@@ -34,8 +36,7 @@ __global__ void computeoutput(func f1, func f2, chunk *d1, chunk *d2, chunk *d3,
 	if (!i.x) shpfx[0] = shpfx[m] = shpfx[2 * m] = 0;
 	__syncthreads();
 
-	uint2 k;
-	uint3 o, j, l = make_uint3(shpfx[0], shpfx[m], shpfx[2 * m]);
+	l = make_uint3(shpfx[0], shpfx[m], shpfx[2 * m]);
 	o.x = 0;
 
 	if (i.y) {
@@ -107,19 +108,17 @@ __global__ void computeoutput(func f1, func f2, chunk *d1, chunk *d2, chunk *d3,
 	}
 }
 
-dim linearbinpacking(func f1, func f2, dim *hp, uint4 *o) {
+dim linearbinpacking(func f1, func f2, dim *hp, uint3 *o) {
 
-	register dim a, b, c, i, t, j = 0, k = 0, tb = hp[0];
+	register dim b, c, i, t, j = 0, k = 0, tb = hp[0];
 	register size_t m, mb = MEMORY(0) + 3 * sizeof(dim);
 
 	for (i = 1; i <= f1.hn; i++)
 		if ((m = MEMORY(i)) + mb > SHAREDSIZE | (t = hp[i]) + tb > THREADSPERBLOCK || i == f1.hn) {
-			a = c = (m + mb > SHAREDSIZE) ? CEIL(mb, SHAREDSIZE) : CEIL(tb, THREADSPERBLOCK);
-			do {
-				b = c;
-				do o[j++] = make_uint4(k, c > 1 ? c : 0, c > 1 ? c - a : i - k, c > 1 ? c - b : 0);
-				while (--b);
-			} while (--a);
+			c = (m + mb > SHAREDSIZE) ? CEIL(mb, SHAREDSIZE) : CEIL(tb, THREADSPERBLOCK);
+			b = c * c;
+			do o[j++] = make_uint3(k, c > 1 ? c : 0, c > 1 ? c * c - b : i - k);
+			while (--b);
 			mb = m + 3 * sizeof(dim);
 			tb = t;
 			k = i;
@@ -274,17 +273,17 @@ int main(int argc, char *argv[]) {
 	memcpy(f3.vars + f1.m, f2.vars + f2.s, sizeof(var) * (f2.m - f1.s));
 
 	dim hp[hn], bn;
-	uint4 *bh = (uint4 *)malloc(sizeof(uint4) * f3.n);
+	uint3 *bh = (uint3 *)malloc(sizeof(uint3) * f3.n);
 	cudaMemcpy(hp, hpd, sizeof(dim) * hn, cudaMemcpyDeviceToHost);
 	bn = linearbinpacking(f1, f2, hp, bh);
-	bh = (uint4 *)realloc(bh, sizeof(uint4) * bn);
-	cudaMemcpyToSymbol(bd, bh, sizeof(uint4) * bn);
-	printf("Needed constant memory = %zu bytes (Max = %u bytes)\n", sizeof(uint4) * bn, CONSTANTSIZE);
-	assert(CONSTANTSIZE > sizeof(uint4) * bn);
+	bh = (uint3 *)realloc(bh, sizeof(uint3) * bn);
+	cudaMemcpyToSymbol(bd, bh, sizeof(uint3) * bn);
+	printf("Needed constant memory = %zu bytes (Max = %u bytes)\n", sizeof(uint3) * bn, CONSTANTSIZE);
+	assert(CONSTANTSIZE > sizeof(uint3) * bn);
 
 	dim i;
 	for (i = 0; i < hn; i++) printf("%u * %u = %u (%zu bytes)\n", f1.h[i], f2.h[i], hp[i], MEMORY(i));
-	for (i = 0; i < bn; i++) printf("%u %u %u %u\n", bh[i].x, bh[i].y, bh[i].z, bh[i].w);
+	for (i = 0; i < bn; i++) printf("%u %u %u\n", bh[i].x, bh[i].y, bh[i].z);
 
 	computeoutput<<<bn, THREADSPERBLOCK>>>(f1, f2, d1d, d2d, d3d, v1d, v2d, v3d, pfxh1d, pfxh2d, pfxhpd, f3.n);
 	gpuerrorcheck(cudaPeekAtLastError());

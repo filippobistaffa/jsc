@@ -17,7 +17,7 @@ __global__ void histogramproduct(dim *h1, dim *h2, dim *hr, dim hn) {
 	if (tid < hn) hr[tid] = h1[tid] * h2[tid];
 }
 
-__global__ void computeoutput(func f1, func f2, chunk *d1, chunk *d2, chunk *d3, value *v1, value *v2, value *v3, dim *pfxh1, dim *pfxh2, dim *pfxhp, dim on) {
+__global__ void jointsum(func f1, func f2, func f3, chunk *d1, chunk *d2, chunk *d3, value *v1, value *v2, value *v3, dim *pfxh1, dim *pfxh2, dim *pfxhp) {
 
 	dim bx = blockIdx.x, tx = threadIdx.x;
 	uint2 k;
@@ -62,7 +62,7 @@ __global__ void computeoutput(func f1, func f2, chunk *d1, chunk *d2, chunk *d3,
 	if (tx < j.x) for (h = 0; h < f1.c; h++) shd[h * j.x + tx] = d1[h * f1.n + l.x + k.x + tx];
 	if (tx < j.y) for (h = 0; h < f2.c; h++) shd[j.x * f1.c + h * j.y + tx] = d2[h * f2.n + l.y + k.y + tx];
 
-	value *shv = (value *)(shd + j.x * f1.c + j.y * f2.c + j.z * (OUTPUTC - f1.m / BITSPERCHUNK));
+	value *shv = (value *)(shd + j.x * f1.c + j.y * f2.c + j.z * (f3.c - f1.m / BITSPERCHUNK));
 	if (tx < j.x) shv[tx] = v1[l.x + k.x + tx];
 	if (tx < j.y) shv[j.x + tx] = v2[l.y + k.y + tx];
 
@@ -103,8 +103,8 @@ __global__ void computeoutput(func f1, func f2, chunk *d1, chunk *d2, chunk *d3,
 		}
 
 		v3[l.z + o.x + tx] = shv[j.x + j.y + tx];
-		for (h = 0; h < f1.m / BITSPERCHUNK; h++) d3[l.z + o.x + h * on + tx] = shd[i.x + h * j.x];
-		for (; h < OUTPUTC; h++) d3[l.z + o.x + h * on + tx] = shd[j.x * f1.c + j.y * f2.c + (h - f1.m / BITSPERCHUNK) * j.z + tx];
+		for (h = 0; h < f1.m / BITSPERCHUNK; h++) d3[l.z + o.x + h * f3.n + tx] = shd[i.x + h * j.x];
+		for (; h < f3.c; h++) d3[l.z + o.x + h * f3.n + tx] = shd[j.x * f1.c + j.y * f2.c + (h - f1.m / BITSPERCHUNK) * j.z + tx];
 	}
 }
 
@@ -285,7 +285,7 @@ int main(int argc, char *argv[]) {
 	for (i = 0; i < hn; i++) printf("%u * %u = %u (%zu bytes)\n", f1.h[i], f2.h[i], hp[i], MEMORY(i));
 	for (i = 0; i < bn; i++) printf("%u %u %u\n", bh[i].x, bh[i].y, bh[i].z);
 
-	computeoutput<<<bn, THREADSPERBLOCK>>>(f1, f2, d1d, d2d, d3d, v1d, v2d, v3d, pfxh1d, pfxh2d, pfxhpd, f3.n);
+	jointsum<<<bn, THREADSPERBLOCK>>>(f1, f2, f3, d1d, d2d, d3d, v1d, v2d, v3d, pfxh1d, pfxh2d, pfxhpd);
 	gpuerrorcheck(cudaPeekAtLastError());
 	gpuerrorcheck(cudaDeviceSynchronize());
 

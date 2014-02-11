@@ -277,9 +277,10 @@ int main(int argc, char *argv[]) {
 	cudaMemcpy(hp, hpd, sizeof(dim) * hn, cudaMemcpyDeviceToHost);
 	bn = linearbinpacking(f1, f2, hp, bh);
 	bh = (uint3 *)realloc(bh, sizeof(uint3) * bn);
-	cudaMemcpyToSymbol(bd, bh, sizeof(uint3) * bn);
+	printf("%u blocks needed\n", bn);
 	printf("Needed constant memory = %zu bytes (Max = %u bytes)\n", sizeof(uint3) * bn, CONSTANTSIZE);
 	assert(CONSTANTSIZE > sizeof(uint3) * bn);
+	cudaMemcpyToSymbol(bd, bh, sizeof(uint3) * bn);
 
 	dim i;
 	for (i = 0; i < hn; i++) printf("%u * %u = %u (%zu bytes)\n", f1.h[i], f2.h[i], hp[i], MEMORY(i));

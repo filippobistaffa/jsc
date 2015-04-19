@@ -15,7 +15,7 @@
 
 #ifdef __cplusplus // CUDA
 
-#include <cudpp.h>
+#include <cub/cub.cuh>
 #define SHAREDSIZE (44 * 1024)
 #define CONSTANTSIZE (60 * 1024)
 #define THREADSPERBLOCK 1024
@@ -23,6 +23,8 @@
 		   (sizeof(chunk) * (OUTPUTC - f1.m / BITSPERCHUNK) + sizeof(value)) * hp[I] + sizeof(dim) * 3)
 
 #endif
+
+#define OPERATION(res, x, y) ((res) = (x) + (y))
 
 #define SEED 1057
 #define BITSPERCHUNK 64

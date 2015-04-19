@@ -87,7 +87,9 @@ __global__ void jointsum(func f1, func f2, func f3, chunk *d1, chunk *d2, chunk 
 		// i.y = start of input 2 row for this group
 		// i.z = total number of input 1 rows for this group
 		// i.w = total number of input 2 rows for this group
-		shv[j.x + j.y + tx] = shv[i.x + o.z / i.w] + shv[h + o.z % i.w];
+
+		//shv[j.x + j.y + tx] = shv[i.x + o.z / i.w] + shv[h + o.z % i.w];
+		OPERATION(shv[j.x + j.y + tx], shv[i.x + o.z / i.w], shv[h + o.z % i.w]);
 		i = make_uint4(i.x + o.z / i.w, i.y + o.z % i.w, f1.m % BITSPERCHUNK, f2.s % BITSPERCHUNK);
 		chunk a, b, c, t = shd[i.x + j.x * (f1.c - 1)];
 		h = f2.s / BITSPERCHUNK;
@@ -247,19 +249,31 @@ int main(int argc, char *argv[]) {
 
 	histogramproduct<<<CEIL(hn, THREADSPERBLOCK), THREADSPERBLOCK>>>(h1d, h2d, hpd, hn);
 
-	CUDPPHandle cudpp, pfxsum = 0;
-	cudppCreate(&cudpp);
-	CUDPPConfiguration config;
-	config.op = CUDPP_ADD;
-	config.datatype = CUDPP_UINT;
-	config.algorithm = CUDPP_SCAN;
-	config.options = CUDPP_OPTION_FORWARD | CUDPP_OPTION_INCLUSIVE;
-	cudppPlan(cudpp, &pfxsum, config, hn, 1, 0);
-	cudppScan(pfxsum, pfxh1d, h1d, hn);
-	cudppScan(pfxsum, pfxh2d, h2d, hn);
-	cudppScan(pfxsum, pfxhpd, hpd, hn);
-	cudppDestroyPlan(pfxsum);
-	cudppDestroy(cudpp);
+	// Determine temporary device storage requirements for inclusive prefix sum
+	void *ts = NULL;
+	size_t tsn = 0;
+
+	cub::DeviceScan::InclusiveSum(ts, tsn, h1d, pfxh1d, hn);
+	printf("Temporary storage for prefix sum = %zu bytes\n", tsn);
+	cudaMalloc(&ts, tsn);
+	cub::DeviceScan::InclusiveSum(ts, tsn, h1d, pfxh1d, hn);
+	cudaFree(ts);
+
+	ts = NULL;
+	tsn = 0;
+	cub::DeviceScan::InclusiveSum(ts, tsn, h2d, pfxh2d, hn);
+	printf("Temporary storage for prefix sum = %zu bytes\n", tsn);
+	cudaMalloc(&ts, tsn);
+	cub::DeviceScan::InclusiveSum(ts, tsn, h2d, pfxh2d, hn);
+	cudaFree(ts);
+
+	ts = NULL;
+	tsn = 0;
+	cub::DeviceScan::InclusiveSum(ts, tsn, hpd, pfxhpd, hn);
+	printf("Temporary storage for prefix sum = %zu bytes\n", tsn);
+	cudaMalloc(&ts, tsn);
+	cub::DeviceScan::InclusiveSum(ts, tsn, hpd, pfxhpd, hn);
+	cudaFree(ts);
 
 	cudaMemcpy(&f3.n, pfxhpd + hn - 1, sizeof(dim), cudaMemcpyDeviceToHost);
 	printf("Result size = %zu bytes (%u lines)\n", sizeof(chunk) * f3.n * (f3.c = OUTPUTC), f3.n);
@@ -297,9 +311,9 @@ int main(int argc, char *argv[]) {
 	f3.s = f3.m;
 	f3.mask = (1ULL << (f3.s % BITSPERCHUNK)) - 1;
 	//sort(f3);
-	print(f1, NULL);
-	print(f2, NULL);
-	print(f3, NULL);
+	//print(f1, NULL);
+	//print(f2, NULL);
+	//print(f3, NULL);
 
 	puts("Checksum...");
 	printf("Checksum Data 1 = %u (size = %zu bytes)\n", crc32(f1.data, sizeof(chunk) * f1.n * f1.c), sizeof(chunk) * f1.n * f1.c);

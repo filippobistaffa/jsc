@@ -13,7 +13,7 @@
 #include <assert.h>
 #include <sys/time.h>
 
-#ifdef __cplusplus // CUDA
+#ifdef __CUDACC__ // CUDA
 
 #include <cub/cub.cuh>
 #define SHAREDSIZE (44 * 1024)
@@ -26,7 +26,9 @@
 
 #define JOINTOPERATION(res, x, y) ((res) = (x) + (y))
 
+#ifndef SEED
 #define SEED 1057
+#endif
 #define BITSPERCHUNK 64
 #define CPUTHREADS 8
 #define MAXVAR 800

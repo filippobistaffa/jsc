@@ -3,7 +3,7 @@
 __constant__ uint3 bd[CONSTANTSIZE / sizeof(uint3)];
 
 #define gpuerrorcheck(ans) { gpuassert((ans), __FILE__, __LINE__); }
-inline void gpuassert(cudaError_t code, char *file, int line, bool abort = true) {
+inline void gpuassert(cudaError_t code, const char *file, int line, bool abort = true) {
 
 	if (code != cudaSuccess) {
 		fprintf(stderr, "GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
@@ -89,7 +89,7 @@ __global__ void jointsum(func f1, func f2, func f3, chunk *d1, chunk *d2, chunk 
 		// i.w = total number of input 2 rows for this group
 
 		//shv[j.x + j.y + tx] = shv[i.x + o.z / i.w] + shv[h + o.z % i.w];
-		OPERATION(shv[j.x + j.y + tx], shv[i.x + o.z / i.w], shv[h + o.z % i.w]);
+		JOINTOPERATION(shv[j.x + j.y + tx], shv[i.x + o.z / i.w], shv[h + o.z % i.w]);
 		i = make_uint4(i.x + o.z / i.w, i.y + o.z % i.w, f1.m % BITSPERCHUNK, f2.s % BITSPERCHUNK);
 		chunk a, b, c, t = shd[i.x + j.x * (f1.c - 1)];
 		h = f2.s / BITSPERCHUNK;
@@ -144,8 +144,8 @@ int main(int argc, char *argv[]) {
 
 	f1.c = CEIL(f1.m, BITSPERCHUNK);
 	f2.c = CEIL(f2.m, BITSPERCHUNK);
-	f1.vars = (var *)malloc(sizeof(var) * f1.m);
-	f2.vars = (var *)malloc(sizeof(var) * f2.m);
+	f1.vars = (id *)malloc(sizeof(id) * f1.m);
+	f2.vars = (id *)malloc(sizeof(id) * f2.m);
         f1.v = (value *)malloc(sizeof(value) * f1.n);
         f2.v = (value *)malloc(sizeof(value) * f2.n);
 	f1.data = (chunk *)calloc(1, sizeof(chunk) * f1.n * f1.c);
@@ -282,9 +282,9 @@ int main(int argc, char *argv[]) {
 
         f3.v = (value *)malloc(sizeof(value) * f3.n);
         f3.data = (chunk *)malloc(sizeof(chunk) * f3.n * f3.c);
-	f3.vars = (var *)malloc(sizeof(var) * (f3.m = f1.m + f2.m - f1.s));
-	memcpy(f3.vars, f1.vars, sizeof(var) * f1.m);
-	memcpy(f3.vars + f1.m, f2.vars + f2.s, sizeof(var) * (f2.m - f1.s));
+	f3.vars = (id *)malloc(sizeof(id) * (f3.m = f1.m + f2.m - f1.s));
+	memcpy(f3.vars, f1.vars, sizeof(id) * f1.m);
+	memcpy(f3.vars + f1.m, f2.vars + f2.s, sizeof(id) * (f2.m - f1.s));
 
 	dim hp[hn], bn;
 	uint3 *bh = (uint3 *)malloc(sizeof(uint3) * f3.n);

@@ -41,7 +41,7 @@ void print(func f, chunk *s) {
 void shared2least(func f, chunk* m) {
 
 	register dim x, y, i, n = 0;
-	register var t;
+	register id t;
 	chunk s[f.c], a[f.c], o[f.c];
 	memset(s, 0, sizeof(chunk) * f.c);
 
@@ -78,7 +78,7 @@ void shared2least(func f, chunk* m) {
 void shared2least(func f, chunk* m) {
 
 	register dim x, y, i;
-	register var t;
+	register id t;
 	chunk* s = (chunk *)calloc(f.c, sizeof(chunk));
 	chunk* z = (chunk *)calloc(f.c, sizeof(chunk));
 	chunk* a = (chunk *)malloc(sizeof(chunk) * f.c);
@@ -118,11 +118,11 @@ void shared2least(func f, chunk* m) {
 
 */
 
-void reordershared(func f, var *vars) {
+void reordershared(func f, id *vars) {
 
 	chunk s[CEIL(f.s, BITSPERCHUNK)];
 	register dim i, j;
-	var v[MAXVAR];
+	id v[MAXVAR];
 
 	for (i = 0; i < f.s; i++) v[vars[i]] = i;
 	#pragma omp parallel for private(i, s)
@@ -135,7 +135,7 @@ void reordershared(func f, var *vars) {
 			f.data[(f.s / BITSPERCHUNK) * f.n + i] |= s[f.s / BITSPERCHUNK];
 		}
 	}
-	memcpy(f.vars, vars, sizeof(var) * f.s);
+	memcpy(f.vars, vars, sizeof(id) * f.s);
 }
 
 dim uniquecombinations(func f) {

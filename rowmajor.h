@@ -13,7 +13,7 @@ inline int compare(const void* a, const void* b, void* c);
 #ifdef __cplusplus
 extern "C"
 #endif
-void reordershared(func f, var *vars);
+void reordershared(func f, id *vars);
 
 #ifdef __cplusplus
 extern "C"

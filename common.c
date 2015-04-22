@@ -4,7 +4,7 @@ void randomvars(func f) {
 
 	assert(MAXVAR > f.m);
 	register dim i, j;
-	register var v;
+	register id v;
 
 	for (i = 0; i < f.m; i++) {
 		random:

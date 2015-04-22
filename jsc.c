@@ -16,8 +16,8 @@ int main(int argc, char *argv[]) {
 	f2.c = CEIL(f2.m, BITSPERCHUNK);
 	f1.v = malloc(sizeof(value) * f1.n);
 	f2.v = malloc(sizeof(value) * f2.n);
-	f1.vars = malloc(sizeof(var) * f1.m);
-	f2.vars = malloc(sizeof(var) * f2.m);
+	f1.vars = malloc(sizeof(id) * f1.m);
+	f2.vars = malloc(sizeof(id) * f2.m);
 	f1.data = calloc(1, sizeof(chunk) * f1.n * f1.c);
 	f2.data = calloc(1, sizeof(chunk) * f2.n * f2.c);
 
@@ -70,6 +70,7 @@ int main(int argc, char *argv[]) {
 	f1.h = calloc(f1.hn, sizeof(dim));
 	f2.h = calloc(f2.hn, sizeof(dim));
 
+	#ifndef ROWMAJOR
 	printf("Histogram... ");
 	fflush(stdout);
 	gettimeofday(&t1, NULL);
@@ -110,6 +111,7 @@ int main(int argc, char *argv[]) {
 
         free(f1.hmask);
         free(f2.hmask);
+        #endif
         free(f1.vars);
         free(f1.data);
         free(f2.vars);

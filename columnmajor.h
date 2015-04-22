@@ -25,7 +25,7 @@ void removenonmatchingrows(func *f1, func *f2); // Very slow, but in-place
 #ifdef __cplusplus
 extern "C"
 #endif
-void reordershared(func f, var *vars);
+void reordershared(func f, id *vars);
 
 #ifdef __cplusplus
 extern "C"

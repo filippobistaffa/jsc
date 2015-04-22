@@ -24,7 +24,7 @@
 
 #endif
 
-#define OPERATION(res, x, y) ((res) = (x) + (y))
+#define JOINTOPERATION(res, x, y) ((res) = (x) + (y))
 
 #define SEED 1057
 #define BITSPERCHUNK 64
@@ -32,15 +32,23 @@
 #define MAXVAR 800
 #define MAXVALUE 1000
 
-typedef uint64_t chunk;
-typedef uint16_t var;
-typedef uint32_t dim;
+#ifndef ID
+#define ID
+typedef uint16_t id;
+#endif
+
+#ifndef VALUE
+#define VALUE
 typedef float value;
+#endif
+
+typedef uint64_t chunk;
+typedef uint32_t dim;
 
 typedef struct {
 	chunk *data, mask, *rmask, *hmask;
 	dim n, m, c, s, *h, hn;
-	var *vars;
+	id *vars;
 	value *v;
 } func;
 

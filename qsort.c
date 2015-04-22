@@ -55,16 +55,6 @@ typedef struct {
 	chunk *hi;
 } stack_node;
 
-__attribute__((always_inline))
-inline int compare(chunk* a, chunk* b, func f, func g) {
-
-	register dim i;
-	register char cmp;
-	for (i = 0; i < f.s / BITSPERCHUNK; i++) if ((cmp = CMP(a[i * f.n], b[i * g.n]))) return cmp;
-	if (f.mask) return CMP(f.mask & a[(f.s / BITSPERCHUNK) * f.n], f.mask & b[(f.s / BITSPERCHUNK) * g.n]);
-	else return 0;
-}
-
 /* Order size using quicksort.  This implementation incorporates
    four optimizations discussed in Sedgewick:
 
@@ -115,10 +105,10 @@ void sort(func f) {
 
 			chunk *mid = lo + ((hi - lo) >> 1);
 
-			if (compare(mid, lo, f, f) < 0) _SWAP(mid, lo, f.n, f.c);
-			if (compare(hi, mid, f, f) < 0) _SWAP(mid, hi, f.n, f.c);
+			if (COMPARE(mid, lo, f, f) < 0) _SWAP(mid, lo, f.n, f.c);
+			if (COMPARE(hi, mid, f, f) < 0) _SWAP(mid, hi, f.n, f.c);
 			else goto jump_over;
-			if (compare(mid, lo, f, f) < 0) _SWAP(mid, lo, f.n, f.c);
+			if (COMPARE(mid, lo, f, f) < 0) _SWAP(mid, lo, f.n, f.c);
 			jump_over:;
 
 			left_ptr = lo + 1;
@@ -128,8 +118,8 @@ void sort(func f) {
 			Gotta like those tight inner loops! They are the main reason
 			that this algorithm runs much faster than others. */
 			do {
-				while (compare(left_ptr, mid, f, f) < 0) left_ptr++;
-				while (compare(mid, right_ptr, f, f) < 0) right_ptr--;
+				while (COMPARE(left_ptr, mid, f, f) < 0) left_ptr++;
+				while (COMPARE(mid, right_ptr, f, f) < 0) right_ptr--;
 
 				if (left_ptr < right_ptr) {
 					_SWAP(left_ptr, right_ptr, f.n, f.c);
@@ -188,7 +178,7 @@ void sort(func f) {
 		and the operation speeds up insertion sort's inner loop. */
 
 		for (run_ptr = tmp_ptr + 1; run_ptr <= thresh; run_ptr++)
-			if (compare(run_ptr, tmp_ptr, f, f) < 0) tmp_ptr = run_ptr;
+			if (COMPARE(run_ptr, tmp_ptr, f, f) < 0) tmp_ptr = run_ptr;
 
 		if (tmp_ptr != base_ptr) _SWAP(tmp_ptr, base_ptr, f.n, f.c);
 
@@ -198,7 +188,7 @@ void sort(func f) {
 		while ((run_ptr += 1) <= end_ptr) {
 
 			tmp_ptr = run_ptr - 1;
-			while (compare(run_ptr, tmp_ptr, f, f) < 0) tmp_ptr--;
+			while (COMPARE(run_ptr, tmp_ptr, f, f) < 0) tmp_ptr--;
 			tmp_ptr++; // current element's final position
 
 			if (tmp_ptr != run_ptr) {

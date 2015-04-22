@@ -171,7 +171,7 @@ void markmatchingrows(func f1, func f2, dim *n1, dim *n2, dim *hn) {
 	register char cmp;
 
 	while (i1 != f1.n && i2 != f2.n)
-		if ((cmp = compare(f1.data + i1, f2.data + i2, f1, f2)))
+		if ((cmp = COMPARE(f1.data + i1, f2.data + i2, f1, f2)))
 			if (cmp < 0) i1 += f1.h[j1++];
 			else i2 += f2.h[j2++];
 		else {
@@ -193,10 +193,10 @@ void copymatchingrows(func *f1, func *f2, dim n1, dim n2, dim hn) {
         i1 = i2 = i3 = i4 = j1 = j2 = j3 = j4 = 0;
 	register char cmp;
 
-        chunk *d1 = malloc(sizeof(chunk) * n1 * f1->c);
-        chunk *d2 = malloc(sizeof(chunk) * n2 * f2->c);
-        dim *h1 = malloc(sizeof(dim) * hn);
-        dim *h2 = malloc(sizeof(dim) * hn);
+        chunk *d1 = (chunk *)malloc(sizeof(chunk) * n1 * f1->c);
+        chunk *d2 = (chunk *)malloc(sizeof(chunk) * n2 * f2->c);
+        dim *h1 = (dim *)malloc(sizeof(dim) * hn);
+        dim *h2 = (dim *)malloc(sizeof(dim) * hn);
 
         while (i1 != f1->n && i2 != f2->n)
                 if ((cmp = GET(f1->hmask, j1)) & GET(f2->hmask, j2)) {
@@ -233,7 +233,7 @@ void removenonmatchingrows(func *f1, func *f2) {
 	register int k;
 
 	while (i1 != f1->n && i2 != f2->n)
-		if ((cmp = compare(f1->data + i1, f2->data + i2, *f1, *f2))) {
+		if ((cmp = COMPARE(f1->data + i1, f2->data + i2, *f1, *f2))) {
 			if (cmp < 0) f = f1, i = i1, j = j1;
 			else f = f2, i = i2, j = j2;
 			for (k = f->c - 1; k >= 0; k--)
@@ -259,8 +259,8 @@ void removenonmatchingrows(func *f1, func *f2) {
 	memmove(f->data + i + k * f->n, f->data + (k + 1) * f->n, sizeof(chunk) * i * (f->c - k - 1));
 	f->hn = j;
 	f->n = i;
-	f1->data = realloc(f1->data, sizeof(chunk) * f1->n * f1->c);
-	f2->data = realloc(f2->data, sizeof(chunk) * f2->n * f2->c);
-	f1->h = realloc(f1->h, sizeof(dim) * f1->hn);
-	f2->h = realloc(f2->h, sizeof(dim) * f2->hn);
+	f1->data = (chunk *)realloc(f1->data, sizeof(chunk) * f1->n * f1->c);
+	f2->data = (chunk *)realloc(f2->data, sizeof(chunk) * f2->n * f2->c);
+	f1->h = (dim *)realloc(f1->h, sizeof(dim) * f1->hn);
+	f2->h = (dim *)realloc(f2->h, sizeof(dim) * f2->hn);
 }

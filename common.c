@@ -42,7 +42,7 @@ __attribute__((always_inline))
 inline void move(chunk *data, dim c, dim n1, dim n2) {
 
 	register dim i;
-	chunk *t = malloc(sizeof(chunk) * n2);
+	chunk *t = (chunk *)malloc(sizeof(chunk) * n2);
 
 	for (i = 0; i < c - 1; i++) {
 		memcpy(t, data + i * (n1 + n2) + (c - i) * n1, sizeof(chunk) * n2);

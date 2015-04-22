@@ -26,6 +26,9 @@
 
 #define JOINTOPERATION(res, x, y) ((res) = (x) + (y))
 
+#define TIMER_START do { fflush(stdout); gettimeofday(&t1, NULL); } while (0)
+#define TIMER_STOP do { gettimeofday(&t2, NULL); printf("%f seconds\n", (double)(t2.tv_usec - t1.tv_usec) / 1e6 + t2.tv_sec - t1.tv_sec); } while (0)
+
 #ifndef SEED
 #define SEED 1057
 #endif

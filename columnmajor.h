@@ -44,8 +44,10 @@ dim uniquecombinations(func f);
 
 #ifdef __cplusplus
 extern "C"
-#endif
+void print(func f, chunk *s = NULL);
+#else
 void print(func f, chunk *s);
+#endif
 
 #ifdef __cplusplus
 extern "C"

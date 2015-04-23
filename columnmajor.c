@@ -15,26 +15,26 @@ void print(func f, chunk *s) {
 	register dim i, j, k;
 
 	for (i = 0; i < f.m; i++) {
-		if (i & 1) printf("\033[1m%2u\033[0m", i);
-		else printf("%2u", i);
+		if (i & 1) printf("\033[1m%3u\033[0m", i);
+		else printf("%3u", i);
 	}
 	printf("\n");
 
 	for (i = 0; i < f.m; i++) {
-		if (i & 1) printf("\033[1m");
+		if (i & 1) printf("\033[1m\033[31m");
 		if (s && ((s[i / BITSPERCHUNK] >> (i % BITSPERCHUNK)) & 1)) printf("\x1b[31m%2u\x1b[0m", f.vars[i]);
-		else printf("%2u", f.vars[i]);
-		if (i & 1) printf("\033[0m");
+		else printf("\033[31m%3u", f.vars[i]);
+		if (i & 1) printf("\033[0m\033[31m");
 	}
-	printf("\n");
+	printf("\033[0m\n");
 
 	for (i = 0; i < f.n; i++) {
 		for (j = 0; j < f.m / BITSPERCHUNK; j++)
 			for (k = 0; k < BITSPERCHUNK; k++)
-				printf("%1zu", (f.data[j * f.n + i] >> k) & 1);
+				printf("%3zu", (f.data[j * f.n + i] >> k) & 1);
 		for (k = 0; k < f.m % BITSPERCHUNK; k++)
-			printf("%1zu", (f.data[(f.m / BITSPERCHUNK) * f.n + i] >> k) & 1);
-		printf("\n");
+			printf("%3zu", (f.data[(f.m / BITSPERCHUNK) * f.n + i] >> k) & 1);
+		printf(" = %f\n", f.v[i]);
 	}
 }
 

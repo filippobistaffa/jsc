@@ -37,15 +37,8 @@
 #define MAXVAR 800
 #define MAXVALUE 1000
 
-#ifndef ID
-#define ID
-typedef uint16_t id;
-#endif
-
-#ifndef VALUE
-#define VALUE
+typedef uint32_t id;
 typedef float value;
-#endif
 
 typedef uint64_t chunk;
 typedef uint32_t dim;

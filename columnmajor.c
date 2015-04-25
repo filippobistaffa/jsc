@@ -54,6 +54,7 @@ void shared2least(func f, chunk* m) {
 		n += __builtin_popcountll(o[i]);
 	}
 
+	if (!n) return;
 	memcpy(m, s, sizeof(chunk) * f.c);
 
 	do {

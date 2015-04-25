@@ -11,6 +11,10 @@
 #define GET(...) GETMACRO(__VA_ARGS__, GETC, GETR)(__VA_ARGS__)
 
 #define OUTPUTC CEIL(f1.m + f2.m - f1.s, BITSPERCHUNK)
+#define FREEFUNC(F) do { free((F).vars); free((F).data); free((F).v); } while 0
+
+#define DIVBPC(x) ((x) / BITSPERCHUNK)
+#define MODBPC(x) ((x) % BITSPERCHUNK)
 
 #ifdef __cplusplus
 extern "C"

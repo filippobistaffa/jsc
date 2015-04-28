@@ -1,23 +1,15 @@
 #include "jsc.h"
 
 __constant__ uint3 bd[CONSTANTSIZE / sizeof(uint3)];
+static struct timeval t1, t2;
 
-#define gpuerrorcheck(ans) { gpuassert((ans), __FILE__, __LINE__); }
-inline void gpuassert(cudaError_t code, const char *file, int line, bool abort = true) {
-
-	if (code != cudaSuccess) {
-		fprintf(stderr, "GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
-		if (abort) exit(code);
-	}
-}
-
-__global__ void histogramproduct(dim *h1, dim *h2, dim *hr, dim hn) {
+__global__ void histogramproductkernel(dim *h1, dim *h2, dim *hr, dim hn) {
 
 	dim tid = blockIdx.x * THREADSPERBLOCK + threadIdx.x;
 	if (tid < hn) hr[tid] = h1[tid] * h2[tid];
 }
 
-__global__ void jointsum(func f1, func f2, func f3, chunk *d1, chunk *d2, chunk *d3, value *v1, value *v2, value *v3, dim *pfxh1, dim *pfxh2, dim *pfxhp) {
+__global__ void jointsumkernel(func f1, func f2, func f3, chunk *d1, chunk *d2, chunk *d3, value *v1, value *v2, value *v3, dim *pfxh1, dim *pfxh2, dim *pfxhp) {
 
 	dim bx = blockIdx.x, tx = threadIdx.x;
 	uint2 k;
@@ -130,51 +122,16 @@ dim linearbinpacking(func f1, func f2, dim *hp, uint3 *o) {
 	return j;
 }
 
-int main(int argc, char *argv[]) {
+func jointsum(func f1, func f2) {
 
-	func f1, f2, f3;
-	struct timeval t1, t2;
-	init_genrand64(SEED);
-	srand(SEED);
-
-	f1.n = 1000;
-	f1.m = 80;
-	f2.n = 3000;
-	f2.m = 100;
-
-	f1.c = CEIL(f1.m, BITSPERCHUNK);
-	f2.c = CEIL(f2.m, BITSPERCHUNK);
-	f1.vars = (id *)malloc(sizeof(id) * f1.m);
-	f2.vars = (id *)malloc(sizeof(id) * f2.m);
-        f1.v = (value *)malloc(sizeof(value) * f1.n);
-        f2.v = (value *)malloc(sizeof(value) * f2.n);
-	f1.data = (chunk *)calloc(1, sizeof(chunk) * f1.n * f1.c);
-	f2.data = (chunk *)calloc(1, sizeof(chunk) * f2.n * f2.c);
-
-	if (!f1.data || !f2.data) {
-		printf("Not enough memory!\n");
-		return 1;
-	}
-
-	printf("Random data... ");
-	fflush(stdout);
-	gettimeofday(&t1, NULL);
-        randomvars(f1);
-        randomvars(f2);
-        randomdata(f1);
-        randomdata(f2);
-        randomvalues(f1);
-        randomvalues(f2);
-	gettimeofday(&t2, NULL);
-	printf("%f seconds\n", (double)(t2.tv_usec - t1.tv_usec) / 1e6 + t2.tv_sec - t1.tv_sec);
-
-	chunk *c1 = (chunk *)calloc(f1.c, sizeof(chunk));
-	chunk *c2 = (chunk *)calloc(f2.c, sizeof(chunk));
+	register func f3;
+	register chunk *c1 = (chunk *)calloc(f1.c, sizeof(chunk));
+	register chunk *c2 = (chunk *)calloc(f2.c, sizeof(chunk));
 	sharedmasks(&f1, c1, &f2, c2);
 
 	f1.mask = f2.mask = f3.mask = (1ULL << (f1.s % BITSPERCHUNK)) - 1;
 	printf("%u shared variables\n", f1.s);
-	if (!f1.s) return 1;
+	//if (!f1.s) return 1;
 	f3.s = f1.s;
 
 	printf("Shift & Reorder... ");
@@ -247,7 +204,7 @@ int main(int argc, char *argv[]) {
 	cudaMemcpy(h1d, f1.h, sizeof(dim) * hn, cudaMemcpyHostToDevice);
 	cudaMemcpy(h2d, f2.h, sizeof(dim) * hn, cudaMemcpyHostToDevice);
 
-	histogramproduct<<<CEIL(hn, THREADSPERBLOCK), THREADSPERBLOCK>>>(h1d, h2d, hpd, hn);
+	histogramproductkernel<<<CEIL(hn, THREADSPERBLOCK), THREADSPERBLOCK>>>(h1d, h2d, hpd, hn);
 
 	// Determine temporary device storage requirements for inclusive prefix sum
 	void *ts = NULL;
@@ -276,13 +233,12 @@ int main(int argc, char *argv[]) {
 	cudaFree(ts);
 
 	cudaMemcpy(&f3.n, pfxhpd + hn - 1, sizeof(dim), cudaMemcpyDeviceToHost);
-	printf("Result size = %zu bytes (%u lines)\n", sizeof(chunk) * f3.n * (f3.c = OUTPUTC), f3.n);
+	f3.m = f1.m + f2.m - f1.s;
+
+	ALLOCFUNC(f3, chunk, id, value);
+	printf("Result size = %zu bytes (%u lines)\n", sizeof(chunk) * f3.n * f3.c, f3.n);
 	cudaMalloc(&d3d, sizeof(chunk) * f3.n * f3.c);
 	cudaMalloc(&v3d, sizeof(value) * f3.n);
-
-        f3.v = (value *)malloc(sizeof(value) * f3.n);
-        f3.data = (chunk *)malloc(sizeof(chunk) * f3.n * f3.c);
-	f3.vars = (id *)malloc(sizeof(id) * (f3.m = f1.m + f2.m - f1.s));
 	memcpy(f3.vars, f1.vars, sizeof(id) * f1.m);
 	memcpy(f3.vars + f1.m, f2.vars + f2.s, sizeof(id) * (f2.m - f1.s));
 
@@ -296,11 +252,11 @@ int main(int argc, char *argv[]) {
 	assert(CONSTANTSIZE > sizeof(uint3) * bn);
 	cudaMemcpyToSymbol(bd, bh, sizeof(uint3) * bn);
 
-	dim i;
-	for (i = 0; i < hn; i++) printf("%u * %u = %u (%zu bytes)\n", f1.h[i], f2.h[i], hp[i], MEMORY(i));
-	for (i = 0; i < bn; i++) printf("%u %u %u\n", bh[i].x, bh[i].y, bh[i].z);
+	//dim i;
+	//for (i = 0; i < hn; i++) printf("%u * %u = %u (%zu bytes)\n", f1.h[i], f2.h[i], hp[i], MEMORY(i));
+	//for (i = 0; i < bn; i++) printf("%u %u %u\n", bh[i].x, bh[i].y, bh[i].z);
 
-	jointsum<<<bn, THREADSPERBLOCK>>>(f1, f2, f3, d1d, d2d, d3d, v1d, v2d, v3d, pfxh1d, pfxh2d, pfxhpd);
+	jointsumkernel<<<bn, THREADSPERBLOCK>>>(f1, f2, f3, d1d, d2d, d3d, v1d, v2d, v3d, pfxh1d, pfxh2d, pfxhpd);
 	gpuerrorcheck(cudaPeekAtLastError());
 	gpuerrorcheck(cudaDeviceSynchronize());
 
@@ -337,20 +293,52 @@ int main(int argc, char *argv[]) {
 	cudaFree(pfxh1d);
 	cudaFree(pfxh2d);
         cudaFree(pfxhpd);
-
 	free(f1.hmask);
 	free(f2.hmask);
-	free(f1.vars);
-	free(f2.vars);
-	free(f3.vars);
-	free(f1.data);
-	free(f2.data);
-	free(f3.data);
-        free(f1.v);
-        free(f2.v);
-	free(f3.v);
 	free(f1.h);
 	free(f2.h);
+	free(c1);
+	free(c2);
+	free(bh);
+
+	return f3;
+}
+
+int main(int argc, char *argv[]) {
+
+	func f1, f2, f3;
+	init_genrand64(SEED);
+	srand(SEED);
+
+	f1.n = 1000;
+	f1.m = 80;
+	f2.n = 3000;
+	f2.m = 100;
+	ALLOCFUNC(f1, chunk, id, value);
+	ALLOCFUNC(f2, chunk, id, value);
+
+	if (!f1.data || !f2.data) {
+		printf("Not enough memory!\n");
+		return 1;
+	}
+
+	printf("Random data... ");
+	fflush(stdout);
+	gettimeofday(&t1, NULL);
+        randomvars(f1);
+        randomvars(f2);
+        randomdata(f1);
+        randomdata(f2);
+        randomvalues(f1);
+        randomvalues(f2);
+	gettimeofday(&t2, NULL);
+	printf("%f seconds\n", (double)(t2.tv_usec - t1.tv_usec) / 1e6 + t2.tv_sec - t1.tv_sec);
+
+	f3 = jointsum(f1, f2);
+
+	FREEFUNC(f1);
+	FREEFUNC(f2);
+	FREEFUNC(f3);
 
 	return 0;
 }

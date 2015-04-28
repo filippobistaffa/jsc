@@ -11,7 +11,14 @@
 #define GET(...) GETMACRO(__VA_ARGS__, GETC, GETR)(__VA_ARGS__)
 
 #define OUTPUTC CEIL(f1.m + f2.m - f1.s, BITSPERCHUNK)
-#define FREEFUNC(F) do { free((F).vars); free((F).data); free((F).v); } while 0
+
+#define ALLOCFUNC(F, DATATYPE, VARTYPE, VALUETYPE) do { (F).c = CEIL((F).m, BITSPERCHUNK); \
+							(F).vars = (VARTYPE *)malloc(sizeof(VARTYPE) * (F).m); \
+							(F).v = (VALUETYPE *)calloc((F).n, sizeof(VALUETYPE)); \
+							(F).data = (DATATYPE *)calloc(1, sizeof(DATATYPE) * (F).n * (F).c); } while (0)
+
+#define RANDOMFUNC(F) do { randomdata(F); randomvars(F); randomvalues(F); } while (0)
+#define FREEFUNC(F) do { free((F).vars); free((F).data); free((F).v); } while (0)
 
 #define DIVBPC(x) ((x) / BITSPERCHUNK)
 #define MODBPC(x) ((x) % BITSPERCHUNK)

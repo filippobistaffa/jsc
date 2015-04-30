@@ -1,7 +1,10 @@
 #include "jsc.h"
 
-__constant__ uint3 bd[CONSTANTSIZE / sizeof(uint3)];
+#ifdef PRINTTIME
 static struct timeval t1, t2;
+#endif
+
+__constant__ uint3 bd[CONSTANTSIZE / sizeof(uint3)];
 
 __global__ void histogramproductkernel(dim *h1, dim *h2, dim *hr, dim hn) {
 
@@ -130,60 +133,56 @@ func jointsum(func *f1, func *f2) {
 	sharedmasks(f1, c1, f2, c2);
 
 	f1->mask = f2->mask = f3.mask = (1ULL << (f1->s % BITSPERCHUNK)) - 1;
+	#ifdef PRINTINFO
 	printf("%u shared variables\n", f1->s);
+	#endif
 	//if (!f1->s) return 1;
 	f3.s = f1->s;
 
-	printf("Shift & Reorder... ");
-	fflush(stdout);
-	gettimeofday(&t1, NULL);
+	TIMER_START("Shift & Reorder...");
 	shared2least(*f1, c1);
 	shared2least(*f2, c2);
 	reordershared(*f2, f1->vars);
-	gettimeofday(&t2, NULL);
-	printf("%f seconds\n", (double)(t2.tv_usec - t1.tv_usec) / 1e6 + t2.tv_sec - t1.tv_sec);
+	TIMER_STOP;
 
-	printf("Sort... ");
-	fflush(stdout);
-	gettimeofday(&t1, NULL);
+	TIMER_START("Sort...");
 	sort(*f1);
 	sort(*f2);
-	gettimeofday(&t2, NULL);
-	printf("%f seconds\n", (double)(t2.tv_usec - t1.tv_usec) / 1e6 + t2.tv_sec - t1.tv_sec);
+	TIMER_STOP;
 
+	#ifdef PRINTINFO
 	printf("%u unique combinations\n", f1->hn = uniquecombinations(*f1));
 	printf("%u unique combinations\n", f2->hn = uniquecombinations(*f2));
+	#endif
 	f1->h = (dim *)calloc(f1->hn, sizeof(dim));
 	f2->h = (dim *)calloc(f2->hn, sizeof(dim));
 
-	printf("Histogram... ");
-	fflush(stdout);
-	gettimeofday(&t1, NULL);
+	TIMER_START("Histogram...");
 	histogram(*f1);
 	histogram(*f2);
-	gettimeofday(&t2, NULL);
-	printf("%f seconds\n", (double)(t2.tv_usec - t1.tv_usec) / 1e6 + t2.tv_sec - t1.tv_sec);
+	TIMER_STOP;
 
-	printf("Matching Rows... ");
-	fflush(stdout);
-	gettimeofday(&t1, NULL);
+	TIMER_START("Matching Rows...");
 	f1->hmask = (chunk *)calloc(CEIL(f1->hn, BITSPERCHUNK), sizeof(chunk));
 	f2->hmask = (chunk *)calloc(CEIL(f2->hn, BITSPERCHUNK), sizeof(chunk));
 	dim n1, n2, hn;
 	markmatchingrows(*f1, *f2, &n1, &n2, &hn);
 	copymatchingrows(f1, f2, n1, n2, hn);
-	gettimeofday(&t2, NULL);
-	printf("%f seconds\n", (double)(t2.tv_usec - t1.tv_usec) / 1e6 + t2.tv_sec - t1.tv_sec);
+	TIMER_STOP;
 
+	#ifdef PRINTINFO
 	printf("%u matching rows\n", f1->n);
+	print(*f1);
 	printf("%u matching rows\n", f2->n);
+	print(*f2);
+	#endif
+
+	assert(("One should have at least 1 matching row per function", f1->n && f2->n));
 
 	chunk *d1d, *d2d, *d3d;
 	value *v1d, *v2d, *v3d;
 	dim *h1d, *h2d, *hpd, *pfxh1d, *pfxh2d, *pfxhpd;
-	printf("Allocating... ");
-	fflush(stdout);
-	gettimeofday(&t1, NULL);
+	TIMER_START("Allocating... ");
 	cudaMalloc(&d1d, sizeof(chunk) * f1->n * f1->c);
 	cudaMalloc(&d2d, sizeof(chunk) * f2->n * f2->c);
 	cudaMalloc(&v1d, sizeof(value) * f1->n);
@@ -194,8 +193,7 @@ func jointsum(func *f1, func *f2) {
         cudaMalloc(&pfxh1d, sizeof(dim) * hn);
         cudaMalloc(&pfxh2d, sizeof(dim) * hn);
         cudaMalloc(&pfxhpd, sizeof(dim) * hn);
-	gettimeofday(&t2, NULL);
-        printf("%f seconds\n", (double)(t2.tv_usec - t1.tv_usec) / 1e6 + t2.tv_sec - t1.tv_sec);
+	TIMER_STOP;
 
 	cudaMemcpy(d1d, f1->data, sizeof(chunk) * f1->n * f1->c, cudaMemcpyHostToDevice);
 	cudaMemcpy(d2d, f2->data, sizeof(chunk) * f2->n * f2->c, cudaMemcpyHostToDevice);
@@ -211,7 +209,9 @@ func jointsum(func *f1, func *f2) {
 	size_t tsn = 0;
 
 	cub::DeviceScan::InclusiveSum(ts, tsn, h1d, pfxh1d, hn);
+	#ifdef PRINTSIZE
 	printf("Temporary storage for prefix sum = %zu bytes\n", tsn);
+	#endif
 	cudaMalloc(&ts, tsn);
 	cub::DeviceScan::InclusiveSum(ts, tsn, h1d, pfxh1d, hn);
 	cudaFree(ts);
@@ -219,7 +219,9 @@ func jointsum(func *f1, func *f2) {
 	ts = NULL;
 	tsn = 0;
 	cub::DeviceScan::InclusiveSum(ts, tsn, h2d, pfxh2d, hn);
+	#ifdef PRINTSIZE
 	printf("Temporary storage for prefix sum = %zu bytes\n", tsn);
+	#endif
 	cudaMalloc(&ts, tsn);
 	cub::DeviceScan::InclusiveSum(ts, tsn, h2d, pfxh2d, hn);
 	cudaFree(ts);
@@ -227,7 +229,6 @@ func jointsum(func *f1, func *f2) {
 	ts = NULL;
 	tsn = 0;
 	cub::DeviceScan::InclusiveSum(ts, tsn, hpd, pfxhpd, hn);
-	printf("Temporary storage for prefix sum = %zu bytes\n", tsn);
 	cudaMalloc(&ts, tsn);
 	cub::DeviceScan::InclusiveSum(ts, tsn, hpd, pfxhpd, hn);
 	cudaFree(ts);
@@ -236,7 +237,9 @@ func jointsum(func *f1, func *f2) {
 	f3.m = f1->m + f2->m - f1->s;
 
 	ALLOCFUNC(f3, chunk, id, value);
+	#ifdef PRINTSIZE
 	printf("Result size = %zu bytes (%u lines)\n", sizeof(chunk) * f3.n * f3.c, f3.n);
+	#endif
 	cudaMalloc(&d3d, sizeof(chunk) * f3.n * f3.c);
 	cudaMalloc(&v3d, sizeof(value) * f3.n);
 	memcpy(f3.vars, f1->vars, sizeof(id) * f1->m);
@@ -247,8 +250,10 @@ func jointsum(func *f1, func *f2) {
 	cudaMemcpy(hp, hpd, sizeof(dim) * hn, cudaMemcpyDeviceToHost);
 	bn = linearbinpacking(*f1, *f2, hp, bh);
 	bh = (uint3 *)realloc(bh, sizeof(uint3) * bn);
+	#ifdef PRINTSIZE
 	printf("%u blocks needed\n", bn);
 	printf("Needed constant memory = %zu bytes (Max = %u bytes)\n", sizeof(uint3) * bn, CONSTANTSIZE);
+	#endif
 	assert(CONSTANTSIZE > sizeof(uint3) * bn);
 	cudaMemcpyToSymbol(bd, bh, sizeof(uint3) * bn);
 
@@ -271,6 +276,7 @@ func jointsum(func *f1, func *f2) {
 	//print(f2, NULL);
 	//print(f3, NULL);
 
+	#ifdef PRINTCHECKSUM
 	puts("Checksum...");
 	printf("Checksum Data 1 = %u (size = %zu bytes)\n", crc32(f1->data, sizeof(chunk) * f1->n * f1->c), sizeof(chunk) * f1->n * f1->c);
 	printf("Checksum Values 1 = %u (size = %zu bytes)\n", crc32(f1->v, sizeof(value) * f1->n), sizeof(value) * f1->n);
@@ -280,6 +286,7 @@ func jointsum(func *f1, func *f2) {
 	printf("Checksum Histogram 2 = %u (size = %zu bytes)\n", crc32(f2->h, sizeof(dim) * f2->hn), sizeof(dim) * f2->hn);
 	printf("Checksum Output Data = %u (size = %zu bytes)\n", crc32(f3.data, sizeof(chunk) * f3.n * f3.c), sizeof(chunk) * f3.n * f3.c);
 	printf("Checksum Output Values = %u (size = %zu bytes)\n", crc32(f3.v, sizeof(value) * f3.n), sizeof(value) * f3.n);
+	#endif
 
 	cudaFree(d1d);
 	cudaFree(d2d);
@@ -303,6 +310,8 @@ func jointsum(func *f1, func *f2) {
 
 	return f3;
 }
+
+/*
 
 int main(int argc, char *argv[]) {
 
@@ -342,3 +351,5 @@ int main(int argc, char *argv[]) {
 
 	return 0;
 }
+
+*/

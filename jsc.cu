@@ -273,8 +273,8 @@ func jointsum(func *f1, func *f2) {
 	cudaMemcpy(f3.v, v3d, sizeof(value) * f3.n, cudaMemcpyDeviceToHost);
 
 	// Order output table for debugging purposes
-	f3.s = f3.m;
-	f3.mask = (1ULL << (f3.s % BITSPERCHUNK)) - 1;
+	//f3.s = f3.m;
+	//f3.mask = (1ULL << (f3.s % BITSPERCHUNK)) - 1;
 	//sort(f3);
 	//print(f1, NULL);
 	//print(f2, NULL);
@@ -315,7 +315,7 @@ func jointsum(func *f1, func *f2) {
 	return f3;
 }
 
-/*
+#ifdef JSCMAIN
 
 int main(int argc, char *argv[]) {
 
@@ -356,4 +356,4 @@ int main(int argc, char *argv[]) {
 	return 0;
 }
 
-*/
+#endif

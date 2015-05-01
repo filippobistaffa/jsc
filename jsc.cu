@@ -150,9 +150,11 @@ func jointsum(func *f1, func *f2) {
 	sort(*f2);
 	TIMER_STOP;
 
+	f1->hn = uniquecombinations(*f1);
+	f2->hn = uniquecombinations(*f2);
 	#ifdef PRINTINFO
-	printf("%u unique combinations\n", f1->hn = uniquecombinations(*f1));
-	printf("%u unique combinations\n", f2->hn = uniquecombinations(*f2));
+	printf("%u unique combinations\n", f1->hn);
+	printf("%u unique combinations\n", f2->hn);
 	#endif
 	f1->h = (dim *)calloc(f1->hn, sizeof(dim));
 	f2->h = (dim *)calloc(f2->hn, sizeof(dim));
@@ -177,7 +179,7 @@ func jointsum(func *f1, func *f2) {
 	print(*f2);
 	#endif
 
-	assert(("One should have at least 1 matching row per function", f1->n && f2->n));
+	assert(f1->n && f2->n);
 
 	chunk *d1d, *d2d, *d3d;
 	value *v1d, *v2d, *v3d;
@@ -203,6 +205,8 @@ func jointsum(func *f1, func *f2) {
 	cudaMemcpy(h2d, f2->h, sizeof(dim) * hn, cudaMemcpyHostToDevice);
 
 	histogramproductkernel<<<CEIL(hn, THREADSPERBLOCK), THREADSPERBLOCK>>>(h1d, h2d, hpd, hn);
+	gpuerrorcheck(cudaPeekAtLastError());
+	gpuerrorcheck(cudaDeviceSynchronize());
 
 	// Determine temporary device storage requirements for inclusive prefix sum
 	void *ts = NULL;

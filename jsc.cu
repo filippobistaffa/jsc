@@ -52,14 +52,18 @@ __global__ void jointsumkernel(func f1, func f2, func f3, chunk *d1, chunk *d2, 
 	if (i.y) j.z = j.x * j.y;
 	assert(THREADSPERBLOCK >= j.z);
 
+	// j.x = number of lines for input 1
+	// j.y = number of lines for input 2
+	// j.z = number of lines for output
+
 	//if (tx < j.x * f1.c) shd[tx] = d1[(tx / j.x) * f1.n + l.x + k.x + tx % j.x];
 	//if (tx < j.y * f2.c) shd[j.x * f1.c + tx] = d2[(tx / j.y) * f2.n + l.y + k.y + tx % j.y];
 	if (tx < j.x) for (h = 0; h < f1.c; h++) shd[h * j.x + tx] = d1[h * f1.n + l.x + k.x + tx];
 	if (tx < j.y) for (h = 0; h < f2.c; h++) shd[j.x * f1.c + h * j.y + tx] = d2[h * f2.n + l.y + k.y + tx];
 
 	value *shv = (value *)(shd + j.x * f1.c + j.y * f2.c + j.z * (f3.c - f1.m / BITSPERCHUNK));
-	if (tx < j.x) shv[tx] = v1[l.x + k.x + tx];
-	if (tx < j.y) shv[j.x + tx] = v2[l.y + k.y + tx];
+	if (tx < j.x) { shv[tx] = v1[l.x + k.x + tx]; /*printf("[%02u] (1) shv[%02u] <- %f\n", tx, tx, v1[l.x + k.x + tx]);*/ }
+	if (tx < j.y) { shv[j.x + tx] = v2[l.y + k.y + tx]; /*printf("[%02u] (2) shv[%02u] <- %f\n", tx, j.x + tx, v2[l.y + k.y + tx]);*/ }
 
 	__syncthreads();
 
@@ -85,33 +89,42 @@ __global__ void jointsumkernel(func f1, func f2, func f3, chunk *d1, chunk *d2, 
 
 		//shv[j.x + j.y + tx] = shv[i.x + o.z / i.w] + shv[h + o.z % i.w];
 		JOINTOPERATION(shv[j.x + j.y + tx], shv[i.x + o.z / i.w], shv[h + o.z % i.w]);
+		//printf("[%02u] shv[%u] = shv[%u] + shv[%u] = %f = %f + %f\n", tx, j.x + j.y + tx, i.x + o.z / i.w, h + o.z % i.w, shv[j.x + j.y + tx], shv[i.x + o.z / i.w], shv[h + o.z % i.w]);
 		i = make_uint4(i.x + o.z / i.w, i.y + o.z % i.w, f1.m % BITSPERCHUNK, f2.s % BITSPERCHUNK);
-		chunk a, b, c, t = shd[i.x + j.x * (f1.c - 1)];
+		chunk a, b, c, t = i.z ? shd[i.x + j.x * (f1.c - 1)] : 0;
+		//printf("[%02u] t=%lu\n",tx, t);
 		h = f2.s / BITSPERCHUNK;
 		a = shd[i.y + h * j.y];
 		for (; h < f2.c; h++) {
 			b = h == f2.c - 1 ? 0 : shd[i.y + (h + 1) * j.y];
 			c = a >> i.w | b << BITSPERCHUNK - i.w;
 			t = t | c << i.z;
-			shd[j.x * f1.c + j.y * f2.c + h * j.z + tx] = t;
+			shd[j.x * f1.c + j.y * f2.c + (h - f1.m / BITSPERCHUNK) * j.z + tx] = t;
 			//printf("bx=%02u tx=%02u d1=%02u d2=%02u (-%02u) h=%u output[%u]=%llu\n", bx, tx, i.x, i.y, j.x *f1.c, h, j.x * f1.c + j.y * f2.c + h * j.z + tx, t);
 			t = c >> BITSPERCHUNK - i.z;
 			a = b;
 		}
 
 		v3[l.z + o.x + tx] = shv[j.x + j.y + tx];
-		for (h = 0; h < f1.m / BITSPERCHUNK; h++) d3[l.z + o.x + h * f3.n + tx] = shd[i.x + h * j.x];
-		for (; h < f3.c; h++) d3[l.z + o.x + h * f3.n + tx] = shd[j.x * f1.c + j.y * f2.c + (h - f1.m / BITSPERCHUNK) * j.z + tx];
+		//printf("[%02u] v[%u] = shv[%u] = %f\n", tx, l.z + o.x + tx, j.x + j.y + tx, v3[l.z + o.x + tx]);
+		for (h = 0; h < f1.m / BITSPERCHUNK; h++) {
+			d3[l.z + o.x + h * f3.n + tx] = shd[i.x + h * j.x];
+			//printf("[%u] (1) %u <- (%u)\n", tx, l.z + o.x + h * f3.n + tx, i.x + h * j.x);
+		}
+		for (; h < f3.c; h++) {
+			d3[l.z + o.x + h * f3.n + tx] = shd[j.x * f1.c + j.y * f2.c + (h - f1.m / BITSPERCHUNK) * j.z + tx];
+			//printf("[%u] (2) %u <- (%u)\n", tx, l.z + o.x + h * f3.n + tx, j.x * f1.c + j.y * f2.c + (h - f1.m / BITSPERCHUNK) * j.z + tx);
+		}
 	}
 }
 
-dim linearbinpacking(func f1, func f2, dim *hp, uint3 *o) {
+dim linearbinpacking(func *f1, func *f2, dim *hp, uint3 *o) {
 
 	register dim b, c, i, t, j = 0, k = 0, tb = hp[0];
 	register size_t m, mb = MEMORY(0) + 3 * sizeof(dim);
 
-	for (i = 1; i <= f1.hn; i++)
-		if ((m = MEMORY(i)) + mb > SHAREDSIZE | (t = hp[i]) + tb > THREADSPERBLOCK || i == f1.hn) {
+	for (i = 1; i <= f1->hn; i++)
+		if ((m = MEMORY(i)) + mb > SHAREDSIZE | (t = hp[i]) + tb > THREADSPERBLOCK || i == f1->hn) {
 			c = (m + mb > SHAREDSIZE) ? CEIL(mb, SHAREDSIZE) : CEIL(tb, THREADSPERBLOCK);
 			b = c * c;
 			do o[j++] = make_uint3(k, c > 1 ? c : 0, c > 1 ? c * c - b : i - k);
@@ -126,6 +139,38 @@ dim linearbinpacking(func f1, func f2, dim *hp, uint3 *o) {
 }
 
 func jointsum(func *f1, func *f2) {
+
+	#ifdef FUNCTIONCODE
+	register id i;
+
+	printf("f1.n = %u;\nf1.m = %u;\n", f1->n, f1->m);
+	printf("chunk data1[] = {%lu", f1->data[0]);
+	for (i = 1; i < f1->c * f1->n; i++)
+		printf(",%lu", f1->data[i]);
+	puts("};");
+	printf("value v1[] = {%f", f1->v[0]);
+	for (i = 1; i < f1->n; i++)
+		printf(",%f", f1->v[i]);
+	puts("};");
+	printf("id vars1[] = {%u", f1->vars[0]);
+	for (i = 1; i < f1->m; i++)
+		printf(",%u", f1->vars[i]);
+	puts("};");
+
+	printf("f2.n = %u;\nf2.m = %u;\n", f2->n, f2->m);
+	printf("chunk data2[] = {%lu", f2->data[0]);
+        for (i = 1; i < f2->c * f2->n; i++)
+                printf(",%lu", f2->data[i]);
+        puts("};");
+        printf("value v2[] = {%f", f2->v[0]);
+        for (i = 1; i < f2->n; i++)
+                printf(",%f", f2->v[i]);
+        puts("};");
+        printf("id vars2[] = {%u", f2->vars[0]);
+        for (i = 1; i < f2->m; i++)
+                printf(",%u", f2->vars[i]);
+        puts("};");
+	#endif
 
 	register func f3;
 	register chunk *c1 = (chunk *)calloc(f1->c, sizeof(chunk));
@@ -252,7 +297,14 @@ func jointsum(func *f1, func *f2) {
 	dim hp[hn], bn;
 	uint3 *bh = (uint3 *)malloc(sizeof(uint3) * f3.n);
 	cudaMemcpy(hp, hpd, sizeof(dim) * hn, cudaMemcpyDeviceToHost);
-	bn = linearbinpacking(*f1, *f2, hp, bh);
+
+	// bn = number of blocks needed
+	// each bh[i] stores the information regarding the "i"-th block
+	// .x =
+	// .y =
+	// .z =
+
+	bn = linearbinpacking(f1, f2, hp, bh);
 	bh = (uint3 *)realloc(bh, sizeof(uint3) * bn);
 	#ifdef PRINTSIZE
 	printf("%u blocks needed\n", bn);
@@ -262,7 +314,7 @@ func jointsum(func *f1, func *f2) {
 	cudaMemcpyToSymbol(bd, bh, sizeof(uint3) * bn);
 
 	//dim i;
-	//for (i = 0; i < hn; i++) printf("%u * %u = %u (%zu bytes)\n", f1.h[i], f2.h[i], hp[i], MEMORY(i));
+	//for (i = 0; i < hn; i++) printf("%u * %u = %u (%zu bytes)\n", f1->h[i], f2->h[i], hp[i], MEMORY(i));
 	//for (i = 0; i < bn; i++) printf("%u %u %u\n", bh[i].x, bh[i].y, bh[i].z);
 
 	jointsumkernel<<<bn, THREADSPERBLOCK>>>(*f1, *f2, f3, d1d, d2d, d3d, v1d, v2d, v3d, pfxh1d, pfxh2d, pfxhpd);

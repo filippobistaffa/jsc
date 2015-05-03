@@ -17,7 +17,19 @@
 #include "jsc.cuh"
 #endif
 
+//#define PRINTFUNCTIONCODE
+#define PRINTCHECKSUM
+//#define PRINTINFO
+//#define PRINTTIME
+//#define PRINTSIZE
 #define JOINTOPERATION(res, x, y) ((res) = (x) + (y))
+
+//#define DEBUGKERNEL
+#define COLOURS
+
+#ifdef JSCMAIN
+#undef PRINTFUNCTIONCODE
+#endif
 
 #ifdef PRINTTIME
 #define TIMER_START(msg) do { printf(msg " "); fflush(stdout); gettimeofday(&t1, NULL); } while (0)
@@ -35,6 +47,7 @@
 #define MAXVAR 800
 #define MAXVALUE 1000
 
+#include "colours.h"
 #include "types.h"
 
 #ifdef ROWMAJOR

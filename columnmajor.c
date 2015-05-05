@@ -15,18 +15,25 @@ void print(func f, chunk *s) {
 	register dim i, j, k;
 
 	for (i = 0; i < f.m; i++) {
-		if (i & 1) printf("\033[1m%3u\033[0m", i);
-		else printf("%3u", i);
+		if (i & 1) printf("%3u", i);
+		else printf(WHITE("%3u"), i);
 	}
 	printf("\n");
 
-	for (i = 0; i < f.m; i++) {
-		if (i & 1) printf("\033[1m\033[31m");
-		if (s && ((s[i / BITSPERCHUNK] >> (i % BITSPERCHUNK)) & 1)) printf("\x1b[31m%2u\x1b[0m", f.vars[i]);
-		else printf("\033[31m%3u", f.vars[i]);
-		if (i & 1) printf("\033[0m\033[31m");
-	}
-	printf("\033[0m\n");
+	for (i = 0; i < f.m; i++)
+		if (s) {
+			if ((s[i / BITSPERCHUNK] >> (i % BITSPERCHUNK)) & 1) {
+				if (i & 1) printf(DARKGREEN("%3u"), f.vars[i]);
+				else printf(GREEN("%3u"), f.vars[i]);
+			} else {
+				if (i & 1) printf(DARKRED("%3u"), f.vars[i]);
+				else printf(RED("%3u"), f.vars[i]);
+			}
+		} else {
+			if (i & 1) printf(DARKCYAN("%3u"), f.vars[i]);
+			else printf(CYAN("%3u"), f.vars[i]);
+		}
+	printf("\n");
 
 	for (i = 0; i < f.n; i++) {
 		for (j = 0; j < f.m / BITSPERCHUNK; j++)

@@ -14,33 +14,26 @@ void print(func f, chunk *s) {
 
 	register dim i, j, k;
 
-	for (i = 0; i < f.m; i++) {
-		if (i & 1) printf("%3u", i);
-		else printf(WHITE("%3u"), i);
-	}
+	#define FORMAT "%3u"
+	#define BITFORMAT "%3zu"
+
+	for (i = 0; i < f.m; i++)
+		printf(i & 1 ? FORMAT : WHITE(FORMAT), i);
 	printf("\n");
 
 	for (i = 0; i < f.m; i++)
 		if (s) {
-			if ((s[i / BITSPERCHUNK] >> (i % BITSPERCHUNK)) & 1) {
-				if (i & 1) printf(DARKGREEN("%3u"), f.vars[i]);
-				else printf(GREEN("%3u"), f.vars[i]);
-			} else {
-				if (i & 1) printf(DARKRED("%3u"), f.vars[i]);
-				else printf(RED("%3u"), f.vars[i]);
-			}
-		} else {
-			if (i & 1) printf(DARKCYAN("%3u"), f.vars[i]);
-			else printf(CYAN("%3u"), f.vars[i]);
-		}
+			if ((s[i / BITSPERCHUNK] >> (i % BITSPERCHUNK)) & 1) printf(i & 1 ? DARKGREEN(FORMAT) : GREEN(FORMAT), f.vars[i]);
+			else printf(i & 1 ? DARKRED(FORMAT) : RED(FORMAT), f.vars[i]);
+		} else printf(i & 1 ? DARKCYAN(FORMAT) : CYAN(FORMAT), f.vars[i]);
 	printf("\n");
 
 	for (i = 0; i < f.n; i++) {
 		for (j = 0; j < f.m / BITSPERCHUNK; j++)
 			for (k = 0; k < BITSPERCHUNK; k++)
-				printf("%3zu", (f.data[j * f.n + i] >> k) & 1);
+				printf(k & 1 ? BITFORMAT : WHITE(BITFORMAT), (f.data[j * f.n + i] >> k) & 1);
 		for (k = 0; k < f.m % BITSPERCHUNK; k++)
-			printf("%3zu", (f.data[(f.m / BITSPERCHUNK) * f.n + i] >> k) & 1);
+			printf(k & 1 ? BITFORMAT : WHITE(BITFORMAT), (f.data[(f.m / BITSPERCHUNK) * f.n + i] >> k) & 1);
 		printf(" = %f\n", f.v[i]);
 	}
 }

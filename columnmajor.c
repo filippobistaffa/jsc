@@ -14,8 +14,9 @@ void print(func f, chunk *s) {
 
 	register dim i, j, k;
 
-	#define FORMAT "%3u"
-	#define BITFORMAT "%3zu"
+	#define WIDTH "3"
+	#define FORMAT "%" WIDTH "u"
+	#define BITFORMAT "%" WIDTH "zu"
 
 	for (i = 0; i < f.m; i++)
 		printf(i & 1 ? FORMAT : WHITE(FORMAT), i);

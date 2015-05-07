@@ -42,7 +42,6 @@
 #ifndef SEED
 #define SEED 1057
 #endif
-#define BITSPERCHUNK 64
 #define CPUTHREADS 8
 #define MAXVAR 800
 #define MAXVALUE 1000

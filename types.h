@@ -5,6 +5,7 @@ typedef uint32_t id;
 typedef float value;
 
 typedef uint64_t chunk;
+#define BITSPERCHUNK 64
 typedef uint32_t dim;
 
 typedef struct {

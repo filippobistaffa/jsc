@@ -1,7 +1,10 @@
 #ifndef TYPES_H_
 #define TYPES_H_
 
+#include <stdint.h>
+
 typedef uint32_t id;
+#define MAXID UINT_MAX
 typedef float value;
 
 typedef uint64_t chunk;

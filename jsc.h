@@ -17,11 +17,8 @@
 #include "jsc.cuh"
 #endif
 
-//#define PRINTFUNCTIONCODE
-#define PRINTCHECKSUM
-//#define PRINTINFO
-//#define PRINTTIME
-//#define PRINTSIZE
+#include "../cucop/params.h"
+
 #define JOINTOPERATION(res, x, y) ((res) = (x) + (y))
 
 //#define DEBUGKERNEL
@@ -39,9 +36,6 @@
 #define TIMER_STOP do {} while (0)
 #endif
 
-#ifndef SEED
-#define SEED 1057
-#endif
 #define CPUTHREADS 8
 #define MAXVAR 800
 #define MAXVALUE 1000

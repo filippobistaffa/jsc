@@ -29,7 +29,9 @@
 #define TIMER_STOP do {} while (0)
 #endif
 
+#ifndef SEED
 #define SEED 0
+#endif
 #define CPUTHREADS 8
 #define MAXVAR 800
 #define MAXVALUE 1000

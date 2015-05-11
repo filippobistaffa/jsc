@@ -21,13 +21,6 @@
 
 #define JOINTOPERATION(res, x, y) ((res) = (x) + (y))
 
-//#define DEBUGKERNEL
-#define COLOURS
-
-#ifdef JSCMAIN
-#undef PRINTFUNCTIONCODE
-#endif
-
 #ifdef PRINTTIME
 #define TIMER_START(msg) do { printf(msg " "); fflush(stdout); gettimeofday(&t1, NULL); } while (0)
 #define TIMER_STOP do { gettimeofday(&t2, NULL); printf("%f seconds\n", (double)(t2.tv_usec - t1.tv_usec) / 1e6 + t2.tv_sec - t1.tv_sec); } while (0)
@@ -36,6 +29,7 @@
 #define TIMER_STOP do {} while (0)
 #endif
 
+#define SEED 0
 #define CPUTHREADS 8
 #define MAXVAR 800
 #define MAXVALUE 1000

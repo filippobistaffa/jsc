@@ -240,7 +240,7 @@ void solveIP(func *f1, func *f2, dim k, size_t mb, dim tb, unsigned *cx, unsigne
 			register dim rp = r1 * r2;
 			// I need enough threads and shared memory to process the rows of input and output data
 			if (rp > THREADSPERBLOCK) continue;
-			if (MEMORY(r1, r2, rp) > SHAREDSIZE) continue;
+			if (MEMORY(r1, r2, rp) > SHAREDSIZE - SHAREDMARGIN) continue;
 			if (rp > rpmax) rpmax = rp, *cx = i, *cy = j;
 		}
 
@@ -254,7 +254,8 @@ dim linearbinpacking(func *f1, func *f2, dim *hp, uint4 *o) {
 	register uint2 c = make_uint2(0, 0);
 
 	for (i = 1; i <= f1->hn; i++)
-		if ((m = MEMORY(f1->h[i], f2->h[i], hp[i])) + mb > SHAREDSIZE | (t = hp[i]) + tb > THREADSPERBLOCK || i == f1->hn) {
+		if ((m = MEMORY(f1->h[i], f2->h[i], hp[i])) + mb > SHAREDSIZE - SHAREDMARGIN
+                     | (t = hp[i]) + tb > THREADSPERBLOCK || i == f1->hn) {
 			solveIP(f1, f2, i - 1, mb, tb, &(c.x), &(c.y));
 			b = c.x * c.y;
 			do o[j++] = c.x * c.y > 1 ? make_uint4(k, c.x, c.y, c.x * c.y - b) : make_uint4(k, 0, 0, i - k);
@@ -359,6 +360,10 @@ func jointsum(func *f1, func *f2) {
 	chunk *d1d, *d2d, *d3d;
 	value *v1d, *v2d, *v3d;
 	dim *h1d, *h2d, *hpd, *pfxh1d, *pfxh2d, *pfxhpd;
+	#ifdef PRINTSIZE
+	printf("Will allocate %zu bytes\n", sizeof(chunk) * (f1->n * f1->c + f2->n * f2->c) +
+					    sizeof(value) * (f1->n + f2->n) + sizeof(dim) * 6 * hn);
+	#endif
 	TIMER_START("Allocating... ");
 	cudaMalloc(&d1d, sizeof(chunk) * f1->n * f1->c);
 	cudaMalloc(&d2d, sizeof(chunk) * f2->n * f2->c);
@@ -437,8 +442,13 @@ func jointsum(func *f1, func *f2) {
 	// notice that if a group is split into n parts, we need n^2 blocks to process it, since both f1 and f2 input
 	// data rows are split into n parts, hence we have n^2 combinations
 
+	TIMER_START("Bin packing...");
 	bn = linearbinpacking(f1, f2, hp, bh);
+	TIMER_STOP;
 	bh = (uint4 *)realloc(bh, sizeof(uint4) * bn);
+
+	assert(sizeof(chunk) * (f1->n * f1->c + f2->n * f2->c + f3.n * f3.c) + sizeof(value) * (f1->n + f2->n + f3.n) +
+	       sizeof(dim) * 6 * hn + sizeof(uint4) * bn < GLOBALSIZE);
 
 	uint4 *bd;
 	cudaMalloc(&bd, sizeof(uint4) * bn);
@@ -458,7 +468,9 @@ func jointsum(func *f1, func *f2) {
 	//assert(CONSTANTSIZE > sizeof(uint4) * bn);
 	//cudaMemcpyToSymbol(bdc, bh, sizeof(uint4) * bn);
 
+	TIMER_START("Joint sum...");
 	jointsumkernel<<<bn, THREADSPERBLOCK>>>(*f1, *f2, f3, d1d, d2d, d3d, v1d, v2d, v3d, pfxh1d, pfxh2d, pfxhpd, bd);
+	TIMER_STOP;
 	gpuerrorcheck(cudaPeekAtLastError());
 	gpuerrorcheck(cudaDeviceSynchronize());
 

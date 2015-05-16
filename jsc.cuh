@@ -4,7 +4,9 @@
 #include <cub/cub.cuh>
 #include "types.h"
 
+#define GLOBALSIZE 4294246400
 #define SHAREDSIZE (44 * 1024)
+#define SHAREDMARGIN 128
 #define CONSTANTSIZE (60 * 1024)
 #define THREADSPERBLOCK 1024
 #define MEMORY(R1, R2, R3) ((sizeof(chunk) * f1->c + sizeof(value)) * (R1) + \

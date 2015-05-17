@@ -310,7 +310,7 @@ func jointsum(func *f1, func *f2) {
 
 	f1->mask = f2->mask = f3.mask = (1ULL << (f1->s % BITSPERCHUNK)) - 1;
 	#ifdef PRINTINFO
-	printf("%u shared variables\n", f1->s);
+	printf(MAGENTA("%u shared variables\n"), f1->s);
 	#endif
 	//if (!f1->s) return 1;
 	f3.s = f1->s;
@@ -329,8 +329,8 @@ func jointsum(func *f1, func *f2) {
 	f1->hn = uniquecombinations(*f1);
 	f2->hn = uniquecombinations(*f2);
 	#ifdef PRINTINFO
-	printf("%u unique combinations\n", f1->hn);
-	printf("%u unique combinations\n", f2->hn);
+	printf(MAGENTA("%u unique combinations\n"), f1->hn);
+	printf(MAGENTA("%u unique combinations\n"), f2->hn);
 	#endif
 	f1->h = (dim *)calloc(f1->hn, sizeof(dim));
 	f2->h = (dim *)calloc(f2->hn, sizeof(dim));
@@ -349,9 +349,9 @@ func jointsum(func *f1, func *f2) {
 	TIMER_STOP;
 
 	#ifdef PRINTINFO
-	printf("%u matching rows\n", f1->n);
+	printf(MAGENTA("%u matching rows\n"), f1->n);
 	//print(*f1);
-	printf("%u matching rows\n", f2->n);
+	printf(MAGENTA("%u matching rows\n"), f2->n);
 	//print(*f2);
 	#endif
 
@@ -364,7 +364,7 @@ func jointsum(func *f1, func *f2) {
 	printf(RED("Will allocate %zu bytes\n"), sizeof(chunk) * (f1->n * f1->c + f2->n * f2->c) +
 						 sizeof(value) * (f1->n + f2->n) + sizeof(dim) * 6 * hn);
 	#endif
-	TIMER_START(MAGENTA("Allocating... "));
+	TIMER_START(YELLOW("Allocating... "));
 	cudaMalloc(&d1d, sizeof(chunk) * f1->n * f1->c);
 	cudaMalloc(&d2d, sizeof(chunk) * f2->n * f2->c);
 	cudaMalloc(&v1d, sizeof(value) * f1->n);

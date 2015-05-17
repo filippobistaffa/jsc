@@ -315,13 +315,13 @@ func jointsum(func *f1, func *f2) {
 	//if (!f1->s) return 1;
 	f3.s = f1->s;
 
-	TIMER_START("Shift & Reorder...");
+	TIMER_START(YELLOW("Shift & Reorder..."));
 	shared2least(*f1, c1);
 	shared2least(*f2, c2);
 	reordershared(*f2, f1->vars);
 	TIMER_STOP;
 
-	TIMER_START("Sort...");
+	TIMER_START(YELLOW("Sort..."));
 	sort(*f1);
 	sort(*f2);
 	TIMER_STOP;
@@ -335,12 +335,12 @@ func jointsum(func *f1, func *f2) {
 	f1->h = (dim *)calloc(f1->hn, sizeof(dim));
 	f2->h = (dim *)calloc(f2->hn, sizeof(dim));
 
-	TIMER_START("Histogram...");
+	TIMER_START(YELLOW("Histogram..."));
 	histogram(*f1);
 	histogram(*f2);
 	TIMER_STOP;
 
-	TIMER_START("Matching Rows...");
+	TIMER_START(YELLOW("Matching Rows..."));
 	f1->hmask = (chunk *)calloc(CEIL(f1->hn, BITSPERCHUNK), sizeof(chunk));
 	f2->hmask = (chunk *)calloc(CEIL(f2->hn, BITSPERCHUNK), sizeof(chunk));
 	dim n1, n2, hn;
@@ -361,10 +361,10 @@ func jointsum(func *f1, func *f2) {
 	value *v1d, *v2d, *v3d;
 	dim *h1d, *h2d, *hpd, *pfxh1d, *pfxh2d, *pfxhpd;
 	#ifdef PRINTSIZE
-	printf("Will allocate %zu bytes\n", sizeof(chunk) * (f1->n * f1->c + f2->n * f2->c) +
-					    sizeof(value) * (f1->n + f2->n) + sizeof(dim) * 6 * hn);
+	printf(RED("Will allocate %zu bytes\n"), sizeof(chunk) * (f1->n * f1->c + f2->n * f2->c) +
+						 sizeof(value) * (f1->n + f2->n) + sizeof(dim) * 6 * hn);
 	#endif
-	TIMER_START("Allocating... ");
+	TIMER_START(MAGENTA("Allocating... "));
 	cudaMalloc(&d1d, sizeof(chunk) * f1->n * f1->c);
 	cudaMalloc(&d2d, sizeof(chunk) * f2->n * f2->c);
 	cudaMalloc(&v1d, sizeof(value) * f1->n);
@@ -394,7 +394,7 @@ func jointsum(func *f1, func *f2) {
 
 	cub::DeviceScan::InclusiveSum(ts, tsn, h1d, pfxh1d, hn);
 	#ifdef PRINTSIZE
-	printf("Temporary storage for prefix sum = %zu bytes\n", tsn);
+	printf(RED("Temporary storage for prefix sum = %zu bytes\n"), tsn);
 	#endif
 	cudaMalloc(&ts, tsn);
 	cub::DeviceScan::InclusiveSum(ts, tsn, h1d, pfxh1d, hn);
@@ -404,7 +404,7 @@ func jointsum(func *f1, func *f2) {
 	tsn = 0;
 	cub::DeviceScan::InclusiveSum(ts, tsn, h2d, pfxh2d, hn);
 	#ifdef PRINTSIZE
-	printf("Temporary storage for prefix sum = %zu bytes\n", tsn);
+	printf(RED("Temporary storage for prefix sum = %zu bytes\n"), tsn);
 	#endif
 	cudaMalloc(&ts, tsn);
 	cub::DeviceScan::InclusiveSum(ts, tsn, h2d, pfxh2d, hn);
@@ -421,7 +421,7 @@ func jointsum(func *f1, func *f2) {
 	f3.m = f1->m + f2->m - f1->s;
 
 	#ifdef PRINTSIZE
-	printf("Result size = %zu bytes (%u lines)\n", sizeof(chunk) * f3.n * f3.c, f3.n);
+	printf(RED("Result size = %zu bytes (%u lines)\n"), sizeof(chunk) * f3.n * f3.c, f3.n);
 	#endif
 
 	assert(sizeof(chunk) * (f1->n * f1->c + f2->n * f2->c + f3.n * f3.c) + sizeof(value) * (f1->n + f2->n + f3.n) +
@@ -446,7 +446,7 @@ func jointsum(func *f1, func *f2) {
 	// notice that if a group is split into n parts, we need n^2 blocks to process it, since both f1 and f2 input
 	// data rows are split into n parts, hence we have n^2 combinations
 
-	TIMER_START("Bin packing...");
+	TIMER_START(YELLOW("Bin packing..."));
 	bn = linearbinpacking(f1, f2, hp, bh);
 	TIMER_STOP;
 	bh = (uint4 *)realloc(bh, sizeof(uint4) * bn);
@@ -459,8 +459,8 @@ func jointsum(func *f1, func *f2) {
 	cudaMemcpy(bd, bh, sizeof(uint4) * bn, cudaMemcpyHostToDevice);
 
 	#ifdef PRINTSIZE
-	printf("%u blocks needed\n", bn);
-	printf("Groups splitting information = %zu bytes\n", sizeof(uint4) * bn);
+	printf(RED("%u block(s) needed\n"), bn);
+	printf(RED("Groups splitting information = %zu bytes\n"), sizeof(uint4) * bn);
 	#endif
 
 	#ifdef DEBUGKERNEL
@@ -472,7 +472,7 @@ func jointsum(func *f1, func *f2) {
 	//assert(CONSTANTSIZE > sizeof(uint4) * bn);
 	//cudaMemcpyToSymbol(bdc, bh, sizeof(uint4) * bn);
 
-	TIMER_START("Joint sum...");
+	TIMER_START(GREEN("Joint sum..."));
 	jointsumkernel<<<bn, THREADSPERBLOCK>>>(*f1, *f2, f3, d1d, d2d, d3d, v1d, v2d, v3d, pfxh1d, pfxh2d, pfxhpd, bd);
 	TIMER_STOP;
 	gpuerrorcheck(cudaPeekAtLastError());

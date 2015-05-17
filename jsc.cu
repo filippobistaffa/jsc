@@ -393,9 +393,6 @@ func jointsum(func *f1, func *f2) {
 	size_t tsn = 0;
 
 	cub::DeviceScan::InclusiveSum(ts, tsn, h1d, pfxh1d, hn);
-	#ifdef PRINTSIZE
-	printf(RED("Temporary storage for prefix sum = %zu bytes\n"), tsn);
-	#endif
 	cudaMalloc(&ts, tsn);
 	cub::DeviceScan::InclusiveSum(ts, tsn, h1d, pfxh1d, hn);
 	cudaFree(ts);
@@ -403,9 +400,6 @@ func jointsum(func *f1, func *f2) {
 	ts = NULL;
 	tsn = 0;
 	cub::DeviceScan::InclusiveSum(ts, tsn, h2d, pfxh2d, hn);
-	#ifdef PRINTSIZE
-	printf(RED("Temporary storage for prefix sum = %zu bytes\n"), tsn);
-	#endif
 	cudaMalloc(&ts, tsn);
 	cub::DeviceScan::InclusiveSum(ts, tsn, h2d, pfxh2d, hn);
 	cudaFree(ts);

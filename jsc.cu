@@ -269,7 +269,7 @@ dim linearbinpacking(func *f1, func *f2, dim *hp, uint4 *o) {
 	return j;
 }
 
-func jointsum(func *f1, func *f2) {
+char jointsum(func *f1, func *f2, func *fo) {
 
 	#ifdef PRINTFUNCTIONCODE
 	register id i;
@@ -421,11 +421,17 @@ func jointsum(func *f1, func *f2) {
 	f3.m = f1->m + f2->m - f1->s;
 
 	#ifdef PRINTSIZE
-	printf(RED("Result size = %zu bytes (%u lines)\n"), sizeof(chunk) * f3.n * f3.c, f3.n);
+	printf(RED("Result size = %zu bytes (%u lines)\n"), sizeof(chunk) * f3.n * CEIL(f3.m, BITSPERCHUNK), f3.n);
 	#endif
 
-	assert(sizeof(chunk) * (f1->n * f1->c + f2->n * f2->c + f3.n * CEIL(f3.m, BITSPERCHUNK)) + sizeof(value) * (f1->n + f2->n + f3.n) +
-	       sizeof(dim) * 6 * hn < GLOBALSIZE);
+	if (sizeof(chunk) * (f1->n * f1->c + f2->n * f2->c + f3.n * CEIL(f3.m, BITSPERCHUNK)) +
+	    sizeof(value) * (f1->n + f2->n + f3.n) + sizeof(dim) * 6 * hn > MEMORYLIMIT) {
+		fprintf(stderr, RED("ERROR:") " Required memory exceeds the limit of %zu bytes\n", MEMORYLIMIT);
+		return 1;
+	}
+
+	//assert(sizeof(chunk) * (f1->n * f1->c + f2->n * f2->c + f3.n * CEIL(f3.m, BITSPERCHUNK)) +
+	//	 sizeof(value) * (f1->n + f2->n + f3.n) + sizeof(dim) * 6 * hn < GLOBALSIZE);
 
 	ALLOCFUNC(f3, chunk, id, value);
 	cudaMalloc(&d3d, sizeof(chunk) * f3.n * f3.c);
@@ -450,10 +456,6 @@ func jointsum(func *f1, func *f2) {
 	bn = linearbinpacking(f1, f2, hp, bh);
 	TIMER_STOP;
 	bh = (uint4 *)realloc(bh, sizeof(uint4) * bn);
-
-	assert(sizeof(chunk) * (f1->n * f1->c + f2->n * f2->c + f3.n * f3.c) + sizeof(value) * (f1->n + f2->n + f3.n) +
-	       sizeof(dim) * 6 * hn + sizeof(uint4) * bn < GLOBALSIZE);
-
 	uint4 *bd;
 	cudaMalloc(&bd, sizeof(uint4) * bn);
 	cudaMemcpy(bd, bh, sizeof(uint4) * bn, cudaMemcpyHostToDevice);
@@ -521,8 +523,9 @@ func jointsum(func *f1, func *f2) {
 	free(c1);
 	free(c2);
 	free(bh);
+	*fo = f3;
 
-	return f3;
+	return 0;
 }
 
 #ifdef JSCMAIN
@@ -587,7 +590,7 @@ id vars2[] = {190,239,14,43,72,66,16,241,321,25,71,104,113,26,48,192,247,49,94,1
 	//print(f1);
 	//print(f2);
 
-	f3 = jointsum(&f1, &f2);
+	jointsum(&f1, &f2, &f3);
 
 	FREEFUNC(f1);
 	FREEFUNC(f2);

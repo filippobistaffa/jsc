@@ -4,7 +4,7 @@
 #include <cub/cub.cuh>
 #include "types.h"
 
-#define GLOBALSIZE 4294246400
+#define MEMORYLIMIT 4294246400
 #define SHAREDSIZE (44 * 1024)
 #define SHAREDMARGIN 128
 #define CONSTANTSIZE (60 * 1024)
@@ -23,7 +23,7 @@ inline void gpuassert(cudaError_t code, const char *file, int line, bool abort =
         }
 }
 
-func jointsum(func *f1, func *f2);
+char jointsum(func *f1, func *f2, func *fo);
 
 #endif  /* JSC_CUH_ */
 

@@ -269,7 +269,7 @@ dim linearbinpacking(func *f1, func *f2, dim *hp, uint4 *o) {
 	return j;
 }
 
-char jointsum(func *f1, func *f2, func *fo) {
+func jointsum(func *f1, func *f2) {
 
 	#ifdef PRINTFUNCTIONCODE
 	register id i;
@@ -424,14 +424,8 @@ char jointsum(func *f1, func *f2, func *fo) {
 	printf(RED("Result size = %zu bytes (%u lines)\n"), sizeof(chunk) * f3.n * CEIL(f3.m, BITSPERCHUNK), f3.n);
 	#endif
 
-	if (sizeof(chunk) * (f1->n * f1->c + f2->n * f2->c + f3.n * CEIL(f3.m, BITSPERCHUNK)) +
-	    sizeof(value) * (f1->n + f2->n + f3.n) + sizeof(dim) * 6 * hn > MEMORYLIMIT) {
-		fprintf(stderr, RED("ERROR:") " Required memory exceeds the limit of %zu bytes\n", MEMORYLIMIT);
-		return 1;
-	}
-
-	//assert(sizeof(chunk) * (f1->n * f1->c + f2->n * f2->c + f3.n * CEIL(f3.m, BITSPERCHUNK)) +
-	//	 sizeof(value) * (f1->n + f2->n + f3.n) + sizeof(dim) * 6 * hn < GLOBALSIZE);
+	assert(sizeof(chunk) * (f1->n * f1->c + f2->n * f2->c + f3.n * CEIL(f3.m, BITSPERCHUNK)) +
+	       sizeof(value) * (f1->n + f2->n + f3.n) + sizeof(dim) * 6 * hn < GLOBALSIZE);
 
 	ALLOCFUNC(f3, chunk, id, value);
 	cudaMalloc(&d3d, sizeof(chunk) * f3.n * f3.c);
@@ -456,6 +450,7 @@ char jointsum(func *f1, func *f2, func *fo) {
 	bn = linearbinpacking(f1, f2, hp, bh);
 	TIMER_STOP;
 	bh = (uint4 *)realloc(bh, sizeof(uint4) * bn);
+
 	uint4 *bd;
 	cudaMalloc(&bd, sizeof(uint4) * bn);
 	cudaMemcpy(bd, bh, sizeof(uint4) * bn, cudaMemcpyHostToDevice);
@@ -523,9 +518,8 @@ char jointsum(func *f1, func *f2, func *fo) {
 	free(c1);
 	free(c2);
 	free(bh);
-	*fo = f3;
 
-	return 0;
+	return f3;
 }
 
 #ifdef JSCMAIN

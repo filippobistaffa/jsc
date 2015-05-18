@@ -23,7 +23,7 @@ inline void gpuassert(cudaError_t code, const char *file, int line, bool abort =
         }
 }
 
-char jointsum(func *f1, func *f2, func *fo);
+func jointsum(func *f1, func *f2);
 
 #endif  /* JSC_CUH_ */
 

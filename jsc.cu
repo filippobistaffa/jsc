@@ -350,9 +350,15 @@ func jointsum(func *f1, func *f2) {
 
 	#ifdef PRINTINFO
 	printf(MAGENTA("%u matching rows\n"), f1->n);
-	//print(*f1);
+	#endif
+	#ifdef PRINTTABLES
+	print(*f1);
+	#endif
+	#ifdef PRINTINFO
 	printf(MAGENTA("%u matching rows\n"), f2->n);
-	//print(*f2);
+	#endif
+	#ifdef PRINTTABLES
+	print(*f2);
 	#endif
 
 	assert(f1->n && f2->n);

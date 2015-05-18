@@ -424,7 +424,7 @@ func jointsum(func *f1, func *f2) {
 	printf(RED("Result size = %zu bytes (%u lines)\n"), sizeof(chunk) * f3.n * f3.c, f3.n);
 	#endif
 
-	assert(sizeof(chunk) * (f1->n * f1->c + f2->n * f2->c + f3.n * f3.c) + sizeof(value) * (f1->n + f2->n + f3.n) +
+	assert(sizeof(chunk) * (f1->n * f1->c + f2->n * f2->c + f3.n * CEIL(f3.m, BITSPERCHUNK)) + sizeof(value) * (f1->n + f2->n + f3.n) +
 	       sizeof(dim) * 6 * hn < GLOBALSIZE);
 
 	ALLOCFUNC(f3, chunk, id, value);

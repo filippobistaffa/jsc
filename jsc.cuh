@@ -4,7 +4,8 @@
 #include <cub/cub.cuh>
 #include "types.h"
 
-#define MEMORYLIMIT 4294246400
+#define GLOBALSIZE 4294246400
+#define INPUTLIMIT (GLOBALSIZE / 2)
 #define SHAREDSIZE (44 * 1024)
 #define SHAREDMARGIN 128
 #define CONSTANTSIZE (60 * 1024)

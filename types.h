@@ -12,7 +12,7 @@ typedef uint64_t chunk;
 typedef uint32_t dim;
 
 typedef struct {
-        chunk *data, mask, *rmask, *hmask;
+        chunk *data, mask, *hmask;
         dim n, m, c, s, *h, hn;
         id *vars;
         value *v;

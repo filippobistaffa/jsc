@@ -124,7 +124,7 @@ void reordershared(func f, id *vars) {
 
 	chunk s[CEIL(f.s, BITSPERCHUNK)];
 	register dim i, j;
-	id v[MAXVAR];
+	id *v = (id *)malloc(sizeof(id) * MAXVAR);
 
 	for (i = 0; i < f.s; i++) v[vars[i]] = i;
 	#pragma omp parallel for private(i, s)
@@ -137,7 +137,9 @@ void reordershared(func f, id *vars) {
 			f.data[(f.s / BITSPERCHUNK) * f.n + i] |= s[f.s / BITSPERCHUNK];
 		}
 	}
+
 	memcpy(f.vars, vars, sizeof(id) * f.s);
+	free(v);
 }
 
 dim uniquecombinations(func f) {

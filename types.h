@@ -14,8 +14,8 @@ typedef uint32_t dim;
 typedef struct {
         chunk *data, mask, *hmask;
         dim n, m, c, s, *h, hn;
+        value *v, d;
         id *vars;
-        value *v;
 } func;
 
 #endif /* TYPES_H_ */

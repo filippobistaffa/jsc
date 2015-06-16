@@ -14,7 +14,7 @@ void print(func f, chunk *s) {
 
 	register dim i, j, k;
 
-	#define WIDTH "3"
+	#define WIDTH "2"
 	#define FORMAT "%" WIDTH "u"
 	#define BITFORMAT "%" WIDTH "zu"
 
@@ -147,9 +147,24 @@ dim uniquecombinations(func f) {
 	register dim i, j, u = 1;
 
 	for (i = 1; i < f.n; i++) {
-		for (j = 0; j < f.s / BITSPERCHUNK; j++) if (f.data[j * f.n + i] != f.data[j * f.n + i - 1]) { u++; goto next; }
-		if (f.mask & (f.data[(f.s / BITSPERCHUNK) * f.n + i] ^ f.data[(f.s / BITSPERCHUNK) * f.n + i - 1])) u++;
+		for (j = 0; j < DIVBPC(f.s); j++)
+			if (f.data[j * f.n + i] != f.data[j * f.n + i - 1]) { u++; goto next; }
+		if (f.mask & (f.data[DIVBPC(f.s) * f.n + i] ^ f.data[DIVBPC(f.s) * f.n + i - 1])) u++;
 		next:;
+	}
+
+	return u;
+}
+
+dim invuniquecombinations(func f) {
+
+	register dim i, j, u = 1;
+
+	for (i = 1; i < f.n; i++) {
+		if (f.mask && (f.data[DIVBPC(f.s) * f.n + i] >> MODBPC(f.s)) ^
+		    (f.data[DIVBPC(f.s) * f.n + i - 1] >> MODBPC(f.s))) { u++; continue; }
+		for (j = DIVBPC(f.s) + (f.mask ? 1 : 0); j < f.c; j++)
+			if (f.data[j * f.n + i] != f.data[j * f.n + i - 1]) { u++; break; }
 	}
 
 	return u;
@@ -161,11 +176,27 @@ void histogram(func f) {
 	f.h[0] = 1;
 
 	for (i = 1, k = 0; i < f.n; i++) {
-		for (j = 0; j < f.s / BITSPERCHUNK; j++) if (f.data[j * f.n + i] != f.data[j * f.n + i - 1]) { k++; goto next; }
-		if (f.mask & (f.data[(f.s / BITSPERCHUNK) * f.n + i] ^ f.data[(f.s / BITSPERCHUNK) * f.n + i - 1])) k++;
+		for (j = 0; j < DIVBPC(f.s); j++)
+			if (f.data[j * f.n + i] != f.data[j * f.n + i - 1]) { k++; goto next; }
+		if (f.mask & (f.data[DIVBPC(f.s) * f.n + i] ^ f.data[DIVBPC(f.s) * f.n + i - 1])) k++;
 		next:
 		f.h[k]++;
 	}
+}
+
+void invhistogram(func f) {
+
+        register dim i, j, k;
+        f.h[0] = 1;
+
+        for (i = 1, k = 0; i < f.n; i++) {
+		if (f.mask && (f.data[DIVBPC(f.s) * f.n + i] >> MODBPC(f.s)) ^
+                    (f.data[DIVBPC(f.s) * f.n + i - 1] >> MODBPC(f.s))) { k++; goto next; }
+                for (j = DIVBPC(f.s) + (f.mask ? 1 : 0); j < f.c; j++)
+                        if (f.data[j * f.n + i] != f.data[j * f.n + i - 1]) { k++; break; }
+                next:
+                f.h[k]++;
+        }
 }
 
 void markmatchingrows(func f1, func f2, dim *n1, dim *n2, dim *hn) {

@@ -40,7 +40,17 @@ void histogram(func f);
 #ifdef __cplusplus
 extern "C"
 #endif
+void invhistogram(func f);
+
+#ifdef __cplusplus
+extern "C"
+#endif
 dim uniquecombinations(func f);
+
+#ifdef __cplusplus
+extern "C"
+#endif
+dim invuniquecombinations(func f);
 
 #ifdef __cplusplus
 extern "C"

@@ -33,7 +33,7 @@
 #define SEED 0
 #endif
 #define CPUTHREADS 8
-#define MAXVAR 5000
+#define MAXVAR 29000
 #define MAXVALUE 1000
 
 #include "colours.h"

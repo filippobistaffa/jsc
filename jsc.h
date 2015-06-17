@@ -13,13 +13,10 @@
 #include <assert.h>
 #include <sys/time.h>
 
-#ifdef __CUDACC__ // CUDA
-#include "jsc.cuh"
-#endif
-
 #include "../cucop/params.h"
 
 #define JOINTOPERATION(res, x, y) ((res) = (x) + (y))
+#define DEFAULT
 
 #ifdef PRINTTIME
 #define TIMER_START(msg) do { printf(msg " "); fflush(stdout); gettimeofday(&t1, NULL); } while (0)
@@ -48,5 +45,12 @@
 #include "marsenne.h"
 #include "common.h"
 #include "crc32.h"
+
+#include "copymatchingrows.t"
+
+#ifdef __CUDACC__ // CUDA
+#include "jsc.cuh"
+#include "jsc.t"
+#endif
 
 #endif /* JSC_H_ */

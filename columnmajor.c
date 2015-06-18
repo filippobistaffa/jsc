@@ -206,7 +206,7 @@ void markmatchingrows(func f1, func f2, dim *n1, dim *n2, dim *hn) {
 	register char cmp;
 
 	while (i1 != f1.n && i2 != f2.n)
-		if ((cmp = COMPARE(f1.data + i1, f2.data + i2, f1, f2)))
+		if ((cmp = COMPARE(0, f1.data + i1, f2.data + i2, f1, f2)))
 			if (cmp < 0) i1 += f1.h[j1++];
 			else i2 += f2.h[j2++];
 		else {
@@ -231,7 +231,7 @@ void removenonmatchingrows(func *f1, func *f2) {
 	register int k;
 
 	while (i1 != f1->n && i2 != f2->n)
-		if ((cmp = COMPARE(f1->data + i1, f2->data + i2, *f1, *f2))) {
+		if ((cmp = COMPARE(0, f1->data + i1, f2->data + i2, *f1, *f2))) {
 			if (cmp < 0) f = f1, i = i1, j = j1;
 			else f = f2, i = i2, j = j2;
 			for (k = f->c - 1; k >= 0; k--)

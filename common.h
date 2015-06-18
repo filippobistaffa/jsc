@@ -1,6 +1,9 @@
 #ifndef COMMON_H_
 #define COMMON_H_
 
+#define MAX(_x, _y) ((_x) > (_y) ? (_x) : (_y))
+#define MIN(_x, _y) ((_x) < (_y) ? (_x) : (_y))
+
 #define SET(V, I) ((V)[(I) / BITSPERCHUNK] |= 1ULL << ((I) % BITSPERCHUNK)) // Row-major SET
 #define CMP(X, Y) ((X) == (Y) ? 0 : ((X) > (Y) ? 1 : -1))
 #define CEIL(X, Y) (1 + (((X) - 1) / (Y)))

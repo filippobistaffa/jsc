@@ -16,7 +16,6 @@
 #include "../cucop/params.h"
 
 #define JOINTOPERATION(res, x, y) ((res) = (x) + (y))
-#define DEFAULT
 
 #ifdef PRINTTIME
 #define TIMER_START(msg) do { printf(msg " "); fflush(stdout); gettimeofday(&t1, NULL); } while (0)
@@ -46,6 +45,7 @@
 #include "common.h"
 #include "crc32.h"
 
+#include "qsort.t"
 #include "copymatchingrows.t"
 
 #ifdef __CUDACC__ // CUDA

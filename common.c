@@ -53,8 +53,8 @@ inline void move(chunk *data, dim c, dim n1, dim n2) {
 	free(t);
 }
 
-__attribute__((always_inline))
-inline void parallelmove(chunk *data, dim c, dim exp) {
+__attribute__((always_inline)) inline
+void parallelmove(chunk *data, dim c, dim exp) {
 
 	register dim i, j, k, h = 1ULL << (exp - 1);
 	for (i = 0, k = 1; i < exp; i++, k <<= 1, h >>= 1)

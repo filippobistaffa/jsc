@@ -5,8 +5,6 @@
         register chunk d = GET(V, I, N) ^ GET(V, J, N); \
         (V)[((I) / BITSPERCHUNK) * (N)] ^= d << ((I) % BITSPERCHUNK); (V)[((J) / BITSPERCHUNK) * (N)] ^= d << ((J) % BITSPERCHUNK); } while (0)
 
-#include "qsort.h"
-
 void markmatchingrows(func f1, func f2, dim *n1, dim *n2, dim *hn);
 
 void removenonmatchingrows(func *f1, func *f2); // Very slow, but in-place

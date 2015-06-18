@@ -63,6 +63,7 @@ void copyfunc(func f1, func f2, dim idx) {
 }
 
 template <bool def = 0>
+__attribute__((always_inline)) inline
 func jointsum(func *f1, func *f2) {
 
 	#ifdef PRINTFUNCTIONCODE

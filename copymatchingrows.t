@@ -1,4 +1,5 @@
 template <bool def = 0>
+__attribute__((always_inline)) inline
 void copymatchingrows(func *f1, func *f2, dim n1, dim n2, dim hn, func *fn1 = NULL, func *fn2 = NULL) {
 
         register dim i, i1, i2, i3, i4, j1, j2, j3, j4;
@@ -21,7 +22,7 @@ void copymatchingrows(func *f1, func *f2, dim n1, dim n2, dim hn, func *fn1 = NU
 
 		cmp1 = cmp2 = 0;
 
-                if (i1 != f1->n && i2 != f2->n && (cmp1 = GET(f1->hmask, j1)) & (cmp2 = GET(f2->hmask, j2))) {
+                if ((i1 != f1->n || !f1->h[j1]) && (i2 != f2->n || !f2->h[j2]) && (cmp1 = GET(f1->hmask, j1)) & (cmp2 = GET(f2->hmask, j2))) {
 
                 	for (i = 0; i < f1->c; i++)
                 		memcpy(d1 + i3 + i * n1, f1->data + i1 + i * f1->n, sizeof(chunk) * f1->h[j1]);

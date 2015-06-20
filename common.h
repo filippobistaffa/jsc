@@ -8,6 +8,7 @@
 #define CMP(X, Y) ((X) == (Y) ? 0 : ((X) > (Y) ? 1 : -1))
 #define CEIL(X, Y) (1 + (((X) - 1) / (Y)))
 
+#define GETBIT(V, I) (((V) >> (I)) & 1)
 #define GETC(V, I, N) ((V)[((I) / BITSPERCHUNK) * (N)] >> ((I) % BITSPERCHUNK) & 1)
 #define GETR(V, I) ((V)[(I) / BITSPERCHUNK] >> ((I) % BITSPERCHUNK) & 1)
 #define GETMACRO(_1, _2, _3, NAME, ...) NAME
@@ -18,10 +19,12 @@
 #define ALLOCFUNC(F, DATATYPE, VARTYPE, VALUETYPE) do { (F).c = CEIL((F).m, BITSPERCHUNK); \
 							(F).vars = (VARTYPE *)malloc(sizeof(VARTYPE) * (F).m); \
 							(F).v = (VALUETYPE *)calloc((F).n, sizeof(VALUETYPE)); \
-							(F).data = (DATATYPE *)calloc(1, sizeof(DATATYPE) * (F).n * (F).c); } while (0)
+							(F).data = (DATATYPE *)calloc(1, sizeof(DATATYPE) * (F).n * (F).c); \
+							(F).care = (chunk **)calloc((F).n, sizeof(chunk *)); } while (0)
 
 #define RANDOMFUNC(F) do { randomdata(F); randomvars(F); randomvalues(F); } while (0)
-#define FREEFUNC(F) do { free((F).vars); free((F).data); free((F).v); } while (0)
+#define FREEFUNC(F) do { free((F).vars); free((F).data); free((F).v); register dim _i; \
+			 for (_i = 0; _i < (F).n; _i++) if ((F).care[_i]) free((F).care[_i]); free((F).care); } while (0)
 
 #define DIVBPC(x) ((x) / BITSPERCHUNK)
 #define MODBPC(x) ((x) % BITSPERCHUNK)

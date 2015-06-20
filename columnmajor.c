@@ -5,8 +5,8 @@ void randomdata(func f) { // assumes BITSPERCHUNK == 64
 	register dim i, j;
 
 	for (i = 0; i < f.n; i++) {
-		for (j = 0; j < f.m / BITSPERCHUNK; j++) f.data[j * f.n + i] = genrand64_int64();
-		if (f.m % BITSPERCHUNK) f.data[(f.m / BITSPERCHUNK) * f.n + i] = genrand64_int64() & ((1ULL << (f.m % BITSPERCHUNK)) - 1);
+		for (j = 0; j < DIVBPC(f.m); j++) f.data[j * f.n + i] = genrand64_int64();
+		if (MODBPC(f.m)) f.data[DIVBPC(f.m) * f.n + i] = genrand64_int64() & ((1ULL << MODBPC(f.m)) - 1);
 	}
 }
 
@@ -24,19 +24,91 @@ void print(func f, chunk *s) {
 
 	for (i = 0; i < f.m; i++)
 		if (s) {
-			if ((s[i / BITSPERCHUNK] >> (i % BITSPERCHUNK)) & 1) printf(i & 1 ? DARKGREEN(FORMAT) : GREEN(FORMAT), f.vars[i]);
+			if ((s[DIVBPC(i)] >> MODBPC(i)) & 1) printf(i & 1 ? DARKGREEN(FORMAT) : GREEN(FORMAT), f.vars[i]);
 			else printf(i & 1 ? DARKRED(FORMAT) : RED(FORMAT), f.vars[i]);
 		} else printf(i & 1 ? DARKCYAN(FORMAT) : CYAN(FORMAT), f.vars[i]);
 	printf("\n");
 
 	for (i = 0; i < f.n; i++) {
-		for (j = 0; j < f.m / BITSPERCHUNK; j++)
+		for (j = 0; j < DIVBPC(f.m); j++)
 			for (k = 0; k < BITSPERCHUNK; k++)
-				printf(k & 1 ? BITFORMAT : WHITE(BITFORMAT), (f.data[j * f.n + i] >> k) & 1);
-		for (k = 0; k < f.m % BITSPERCHUNK; k++)
-			printf(k & 1 ? BITFORMAT : WHITE(BITFORMAT), (f.data[(f.m / BITSPERCHUNK) * f.n + i] >> k) & 1);
-		printf(" = %f\n", f.v[i]);
+				if (!f.care[i] || ((f.care[i][j] >> k) & 1))
+					printf(k & 1 ? BITFORMAT : WHITE(BITFORMAT), (f.data[j * f.n + i] >> k) & 1);
+				else printf(k & 1 ? "%" WIDTH "s" : WHITE("%" WIDTH "s"), "*");
+		for (k = 0; k < MODBPC(f.m); k++)
+			if (!f.care[i] || ((f.care[i][j] >> k) & 1))
+				printf(k & 1 ? BITFORMAT : WHITE(BITFORMAT), (f.data[DIVBPC(f.m) * f.n + i] >> k) & 1);
+			else printf(k & 1 ? "%" WIDTH "s" : WHITE("%" WIDTH "s"), "*");
+		printf(" = %u\n", f.v[i]);
 	}
+}
+
+#define MASKOR(A, B, R, C) do { register dim _i; for (_i = 0; _i < (C); _i++) (R)[_i] = (A)[_i] | (B)[_i]; } while (0)
+#define MASKANDNOT(A, B, R, C) do { register dim _i; for (_i = 0; _i < (C); _i++) (R)[_i] = (A)[_i] & ~(B)[_i]; } while (0)
+#define MASKPOPCNT(A, C) ({ register dim _i, _c = 0; for (_i = 0; _i < (C); _i++) _c += __builtin_popcountll((A)[_i]); _c; })
+
+void instancedontcare(func *f, chunk* m) {
+
+	register dim i, ext = 0;
+	register dim *its = (dim *)calloc(f->n, sizeof(dim));
+	register chunk *mask = (chunk *)malloc(sizeof(mask) * f->c * f->n);
+
+	for (i = 0; i < f->n; i++) if (f->care[i]) {
+		MASKANDNOT(m, f->care[i], mask + i * f->c, f->c);
+		if ((its[i] = MASKPOPCNT(mask + i * f->c, f->c))) ext += (1ULL << its[i]) - 1;
+	}
+
+	if (ext) {
+
+		register chunk *extcare[ext];
+		register chunk *extdata = (chunk *)malloc(sizeof(chunk) * ext * f->c);
+		register value *extv = (value *)malloc(sizeof(value) * ext);
+		register dim l = 0;
+
+		for (i = 0; i < f->n; i++) if (its[i]) {
+
+			MASKOR(m, f->care[i], f->care[i], f->c);
+			register dim j, k, b = 0;
+
+			for (j = 1; j < 1ULL << its[i]; j++) {
+
+				extcare[l] = (chunk *)malloc(sizeof(chunk) * f->c);
+				memcpy(extcare[l], f->care[i], sizeof(chunk) * f->c);
+
+				for (k = 0; k < f->c; k++) {
+
+					register chunk d = f->data[k * f->n + i];
+
+					while (mask[i * f->c + k]) {
+						register dim idx = __builtin_ffsll(mask[i * f->c + k]) - 1;
+						if (GETBIT(j, b++)) d |= 1ULL << idx;
+						mask[i * f->c + k] ^= 1ULL << idx;
+					}
+
+					extdata[k * ext + l] = d;
+				}
+				extv[l++] = f->v[i];
+			}
+		}
+
+		f->data = (chunk *)realloc(f->data, sizeof(chunk) * f->c * (f->n + ext));
+		f->care = (chunk **)realloc(f->care, sizeof(chunk *) * (f->n + ext));
+		f->v = (value *)realloc(f->v, sizeof(value) * (f->n + ext));
+
+		for (i = 0; i < f->c; i++) {
+			memmove(f->data + (f->n + ext) * (f->c - i - 1), f->data + f->n * (f->c - i - 1), sizeof(chunk) * f->n);
+			memcpy(f->data + (f->n + ext) * (f->c - i - 1) + f->n, extdata + ext * (f->c - i - 1), sizeof(chunk) * ext);
+		}
+
+		memcpy(f->care + f->n, extcare, sizeof(chunk *) * ext);
+		memcpy(f->v + f->n, extv, sizeof(chunk *) * ext);
+		f->n += ext;
+		free(extdata);
+		free(extv);
+	}
+
+	free(mask);
+	free(its);
 }
 
 void shared2least(func f, chunk* m) {
@@ -46,8 +118,8 @@ void shared2least(func f, chunk* m) {
 	chunk s[f.c], a[f.c], o[f.c];
 	memset(s, 0, sizeof(chunk) * f.c);
 
-	for (i = 0; i < f.s / BITSPERCHUNK; i++) s[i] = ~(0ULL);
-	if (f.s % BITSPERCHUNK) s[f.s / BITSPERCHUNK] = f.mask;
+	for (i = 0; i < DIVBPC(f.s); i++) s[i] = ~(0ULL);
+	if (MODBPC(f.s)) s[DIVBPC(f.s)] = f.mask;
 
 	for (i = 0; i < f.c; i++) {
 		a[i] = s[i] & ~m[i];
@@ -69,9 +141,9 @@ void shared2least(func f, chunk* m) {
 		f.vars[x] = f.vars[y];
 		f.vars[y] = t;
 		#pragma omp parallel for private(i)
-		for (i = 0; i < f.n; i++) SWAP(f.data + i, x, y, f.n);
-		o[x / BITSPERCHUNK] ^= 1ULL << (x % BITSPERCHUNK);
-		a[y / BITSPERCHUNK] ^= 1ULL << (y % BITSPERCHUNK);
+		for (i = 0; i < f.n; i++) SWAP(f.data + i, f.care[i], x, y, f.n);
+		o[DIVBPC(x)] ^= 1ULL << MODBPC(x);
+		a[DIVBPC(y)] ^= 1ULL << MODBPC(y);
 	} while (--n);
 }
 

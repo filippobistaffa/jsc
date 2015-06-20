@@ -3,16 +3,16 @@
 
 #include <stdint.h>
 
-typedef uint32_t id;
+typedef uint16_t id;
 #define MAXID UINT_MAX
-typedef float value;
+typedef uint32_t value;
 
 typedef uint64_t chunk;
 #define BITSPERCHUNK 64
 typedef uint32_t dim;
 
 typedef struct {
-        chunk *data, mask, *hmask;
+        chunk *data, mask, *hmask, **care;
         dim n, m, c, s, *h, hn;
         value *v, d;
         id *vars;

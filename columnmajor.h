@@ -1,11 +1,12 @@
 #ifndef COLUMNMAJOR_H_
 #define COLUMNMAJOR_H_
 
-#define SWAP(V, I, J, N) do { \
-        register chunk d = GET(V, I, N) ^ GET(V, J, N); \
-        (V)[((I) / BITSPERCHUNK) * (N)] ^= d << ((I) % BITSPERCHUNK); (V)[((J) / BITSPERCHUNK) * (N)] ^= d << ((J) % BITSPERCHUNK); } while (0)
+#define SWAP(V, CARE, I, J, N) do { register chunk d = GET(V, I, N) ^ GET(V, J, N); (V)[DIVBPC(I) * (N)] ^= d << MODBPC(I); (V)[DIVBPC(J) * (N)] ^= d << MODBPC(J); \
+				    if (CARE) { d = GET(CARE, I) ^ GET(CARE, J); (CARE)[DIVBPC(I)] ^= d << MODBPC(I); (CARE)[DIVBPC(J)] ^= d << MODBPC(J); } } while (0)
 
 void markmatchingrows(func f1, func f2, dim *n1, dim *n2, dim *hn);
+
+void instancedontcare(func *f, chunk* m);
 
 void removenonmatchingrows(func *f1, func *f2); // Very slow, but in-place
 

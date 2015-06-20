@@ -45,12 +45,12 @@
 #include "common.h"
 #include "crc32.h"
 
-#include "qsort.t"
-#include "copymatchingrows.t"
+#include "qsort.cpp"
+#include "copymatchingrows.cpp"
 
 #ifdef __CUDACC__ // CUDA
 #include "jsc.cuh"
-#include "jsc.t"
+#include "jsc.cu"
 #endif
 
 #endif /* JSC_H_ */

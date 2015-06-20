@@ -1,4 +1,4 @@
-template <bool def = 0>
+template <bool def = false>
 __attribute__((always_inline)) inline
 void copymatchingrows(func *f1, func *f2, dim n1, dim n2, dim hn, func *fn1 = NULL, func *fn2 = NULL) {
 

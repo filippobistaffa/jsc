@@ -37,6 +37,9 @@
 
 #define _SWAP(A, B, N, C) do { \
 	register chunk *__a = (A), *__b = (B), *__bp = base_ptr; \
+	register chunk *__c = *(f.care + (__a - __bp)); \
+	*(f.care + (__a - __bp)) = *(f.care + (__b - __bp)); \
+	*(f.care + (__b - __bp)) = __c; \
 	register value __t = *(f.v + (__a - __bp)); \
 	*(f.v + (__a - __bp)) = *(f.v + (__b - __bp)); \
 	*(f.v + (__b - __bp)) = __t; \

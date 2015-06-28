@@ -4,30 +4,34 @@
 #define MAX(_x, _y) ((_x) > (_y) ? (_x) : (_y))
 #define MIN(_x, _y) ((_x) < (_y) ? (_x) : (_y))
 
-#define SET(V, I) ((V)[(I) / BITSPERCHUNK] |= 1ULL << ((I) % BITSPERCHUNK)) // Row-major SET
+#define DIVBPC(x) ((x) / BITSPERCHUNK)
+#define MODBPC(x) ((x) % BITSPERCHUNK)
+
+#define SET(V, I) ((V)[DIVBPC(I)] |= 1ULL << MODBPC(I)) // Row-major SET
 #define CMP(X, Y) ((X) == (Y) ? 0 : ((X) > (Y) ? 1 : -1))
 #define CEIL(X, Y) (1 + (((X) - 1) / (Y)))
 
 #define GETBIT(V, I) (((V) >> (I)) & 1)
-#define GETC(V, I, N) ((V)[((I) / BITSPERCHUNK) * (N)] >> ((I) % BITSPERCHUNK) & 1)
-#define GETR(V, I) ((V)[(I) / BITSPERCHUNK] >> ((I) % BITSPERCHUNK) & 1)
+#define GETC(V, I, N) ((V)[DIVBPC(I) * (N)] >> MODBPC(I) & 1)
+#define GETR(V, I) ((V)[DIVBPC(I)] >> MODBPC(I) & 1)
 #define GETMACRO(_1, _2, _3, NAME, ...) NAME
 #define GET(...) GETMACRO(__VA_ARGS__, GETC, GETR)(__VA_ARGS__)
 
-#define OUTPUTC CEIL(f1.m + f2.m - f1.s, BITSPERCHUNK)
-
-#define ALLOCFUNC(F, DATATYPE, VARTYPE, VALUETYPE) do { (F).c = CEIL((F).m, BITSPERCHUNK); \
-							(F).vars = (VARTYPE *)malloc(sizeof(VARTYPE) * (F).m); \
-							(F).v = (VALUETYPE *)calloc((F).n, sizeof(VALUETYPE)); \
-							(F).data = (DATATYPE *)calloc(1, sizeof(DATATYPE) * (F).n * (F).c); \
-							(F).care = (chunk **)calloc((F).n, sizeof(chunk *)); } while (0)
+#define ALLOCFUNC(F, CARE) do { (F).c = CEIL((F).m, BITSPERCHUNK); \
+				(F).vars = (id *)malloc(sizeof(id) * (F).m); \
+				(F).v = (value *)calloc((F).n, sizeof(value)); \
+				(F).data = (chunk *)calloc(1, sizeof(chunk) * (F).n * (F).c); \
+				(F).care = (chunk **)calloc(CARE ? (F).n : 0, sizeof(chunk *)); } while (0)
 
 #define RANDOMFUNC(F) do { randomdata(F); randomvars(F); randomvalues(F); } while (0)
-#define FREEFUNC(F) do { free((F).vars); free((F).data); free((F).v); register dim _i; \
-			 for (_i = 0; _i < (F).n; _i++) if ((F).care[_i]) free((F).care[_i]); free((F).care); } while (0)
+#define FREEFUNC(F, CARE) do { free((F).vars); free((F).data); free((F).v); register dim _i; if (CARE) \
+			       for (_i = 0; _i < (F).n; _i++) if ((F).care[_i]) free((F).care[_i]); free((F).care); } while (0)
 
-#define DIVBPC(x) ((x) / BITSPERCHUNK)
-#define MODBPC(x) ((x) % BITSPERCHUNK)
+#define MASKOR(A, B, R, C) do { register dim _i; for (_i = 0; _i < (C); _i++) (R)[_i] = (A)[_i] | (B)[_i]; } while (0)
+#define MASKXOR(A, B, R, C) do { register dim _i; for (_i = 0; _i < (C); _i++) (R)[_i] = (A)[_i] ^ (B)[_i]; } while (0)
+#define MASKANDNOT(A, B, R, C) do { register dim _i; for (_i = 0; _i < (C); _i++) (R)[_i] = (A)[_i] & ~(B)[_i]; } while (0)
+#define MASKNOTAND(A, B, R, C) do { register dim _i; for (_i = 0; _i < (C); _i++) (R)[_i] = ~(A)[_i] & (B)[_i]; } while (0)
+#define MASKPOPCNT(A, C) ({ register dim _i, _c = 0; for (_i = 0; _i < (C); _i++) _c += __builtin_popcountll((A)[_i]); _c; })
 
 #ifdef __cplusplus
 extern "C"

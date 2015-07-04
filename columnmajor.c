@@ -1,134 +1,76 @@
 #include "jsc.h"
 
-void randomdata(func f) { // assumes BITSPERCHUNK == 64
+void randomdata(func *f) { // assumes BITSPERCHUNK == 64
 
 	register dim i, j;
 
-	for (i = 0; i < f.n; i++) {
-		for (j = 0; j < DIVBPC(f.m); j++) f.data[j * f.n + i] = genrand64_int64();
-		if (MODBPC(f.m)) f.data[DIVBPC(f.m) * f.n + i] = genrand64_int64() & ((1ULL << MODBPC(f.m)) - 1);
+	for (i = 0; i < f->n; i++) {
+		for (j = 0; j < DIVBPC(f->m); j++) f->data[j * f->n + i] = genrand64_int64();
+		if (MODBPC(f->m)) f->data[DIVBPC(f->m) * f->n + i] = genrand64_int64() & ((1ULL << MODBPC(f->m)) - 1);
 	}
 }
 
-void print(func f, chunk *s) {
+#define WIDTH "2"
+#define FORMAT "%" WIDTH "u"
+#define BITFORMAT "%" WIDTH "zu"
 
-	register dim i, j, k;
+void printrow(func *f, dim i) {
 
-	#define WIDTH "2"
-	#define FORMAT "%" WIDTH "u"
-	#define BITFORMAT "%" WIDTH "zu"
+	register dim j, k;
 
-	for (i = 0; i < f.m; i++)
+	for (j = 0; j < DIVBPC(f->m); j++)
+		for (k = 0; k < BITSPERCHUNK; k++)
+			if (!f->care[i] || ((f->care[i][j] >> k) & 1))
+				printf(k & 1 ? BITFORMAT : WHITE(BITFORMAT), (f->data[j * f->n + i] >> k) & 1);
+			else printf(k & 1 ? "%" WIDTH "s" : WHITE("%" WIDTH "s"), "*");
+
+	for (k = 0; k < MODBPC(f->m); k++)
+		if (!f->care[i] || ((f->care[i][j] >> k) & 1))
+			printf(k & 1 ? BITFORMAT : WHITE(BITFORMAT), (f->data[DIVBPC(f->m) * f->n + i] >> k) & 1);
+		else printf(k & 1 ? "%" WIDTH "s" : WHITE("%" WIDTH "s"), "*");
+
+	printf(" = %u (%p)\n", f->v[i], f->care[i]);
+}
+
+void print(func *f, chunk *s) {
+
+	register dim i;
+
+	for (i = 0; i < f->m; i++)
 		printf(i & 1 ? FORMAT : WHITE(FORMAT), i);
 	printf("\n");
 
-	for (i = 0; i < f.m; i++)
+	for (i = 0; i < f->m; i++)
 		if (s) {
-			if ((s[DIVBPC(i)] >> MODBPC(i)) & 1) printf(i & 1 ? DARKGREEN(FORMAT) : GREEN(FORMAT), f.vars[i]);
-			else printf(i & 1 ? DARKRED(FORMAT) : RED(FORMAT), f.vars[i]);
-		} else printf(i & 1 ? DARKCYAN(FORMAT) : CYAN(FORMAT), f.vars[i]);
+			if ((s[DIVBPC(i)] >> MODBPC(i)) & 1) printf(i & 1 ? DARKGREEN(FORMAT) : GREEN(FORMAT), f->vars[i]);
+			else printf(i & 1 ? DARKRED(FORMAT) : RED(FORMAT), f->vars[i]);
+		} else printf(i & 1 ? DARKCYAN(FORMAT) : CYAN(FORMAT), f->vars[i]);
 	printf("\n");
 
-	for (i = 0; i < f.n; i++) {
-		for (j = 0; j < DIVBPC(f.m); j++)
-			for (k = 0; k < BITSPERCHUNK; k++)
-				if (!f.care[i] || ((f.care[i][j] >> k) & 1))
-					printf(k & 1 ? BITFORMAT : WHITE(BITFORMAT), (f.data[j * f.n + i] >> k) & 1);
-				else printf(k & 1 ? "%" WIDTH "s" : WHITE("%" WIDTH "s"), "*");
-		for (k = 0; k < MODBPC(f.m); k++)
-			if (!f.care[i] || ((f.care[i][j] >> k) & 1))
-				printf(k & 1 ? BITFORMAT : WHITE(BITFORMAT), (f.data[DIVBPC(f.m) * f.n + i] >> k) & 1);
-			else printf(k & 1 ? "%" WIDTH "s" : WHITE("%" WIDTH "s"), "*");
-		printf(" = %u\n", f.v[i]);
-	}
+	for (i = 0; i < f->n; i++) printrow(f, i);
 }
 
-#define MASKOR(A, B, R, C) do { register dim _i; for (_i = 0; _i < (C); _i++) (R)[_i] = (A)[_i] | (B)[_i]; } while (0)
-#define MASKANDNOT(A, B, R, C) do { register dim _i; for (_i = 0; _i < (C); _i++) (R)[_i] = (A)[_i] & ~(B)[_i]; } while (0)
-#define MASKPOPCNT(A, C) ({ register dim _i, _c = 0; for (_i = 0; _i < (C); _i++) _c += __builtin_popcountll((A)[_i]); _c; })
+#define SWAP(V, CARE, I, J, N) do { register chunk d = GET(V, I, N) ^ GET(V, J, N); (V)[DIVBPC(I) * (N)] ^= d << MODBPC(I); (V)[DIVBPC(J) * (N)] ^= d << MODBPC(J); \
+				    if (CARE) { d = GET(CARE, I) ^ GET(CARE, J); (CARE)[DIVBPC(I)] ^= d << MODBPC(I); (CARE)[DIVBPC(J)] ^= d << MODBPC(J); } } while (0)
 
-void instancedontcare(func *f, chunk* m) {
-
-	register dim i, ext = 0;
-	register dim *its = (dim *)calloc(f->n, sizeof(dim));
-	register chunk *mask = (chunk *)malloc(sizeof(mask) * f->c * f->n);
-
-	for (i = 0; i < f->n; i++) if (f->care[i]) {
-		MASKANDNOT(m, f->care[i], mask + i * f->c, f->c);
-		if ((its[i] = MASKPOPCNT(mask + i * f->c, f->c))) ext += (1ULL << its[i]) - 1;
-	}
-
-	if (ext) {
-
-		register chunk *extcare[ext];
-		register chunk *extdata = (chunk *)malloc(sizeof(chunk) * ext * f->c);
-		register value *extv = (value *)malloc(sizeof(value) * ext);
-		register dim l = 0;
-
-		for (i = 0; i < f->n; i++) if (its[i]) {
-
-			MASKOR(m, f->care[i], f->care[i], f->c);
-			register dim j, k, b = 0;
-
-			for (j = 1; j < 1ULL << its[i]; j++) {
-
-				extcare[l] = (chunk *)malloc(sizeof(chunk) * f->c);
-				memcpy(extcare[l], f->care[i], sizeof(chunk) * f->c);
-
-				for (k = 0; k < f->c; k++) {
-
-					register chunk d = f->data[k * f->n + i];
-
-					while (mask[i * f->c + k]) {
-						register dim idx = __builtin_ffsll(mask[i * f->c + k]) - 1;
-						if (GETBIT(j, b++)) d |= 1ULL << idx;
-						mask[i * f->c + k] ^= 1ULL << idx;
-					}
-
-					extdata[k * ext + l] = d;
-				}
-				extv[l++] = f->v[i];
-			}
-		}
-
-		f->data = (chunk *)realloc(f->data, sizeof(chunk) * f->c * (f->n + ext));
-		f->care = (chunk **)realloc(f->care, sizeof(chunk *) * (f->n + ext));
-		f->v = (value *)realloc(f->v, sizeof(value) * (f->n + ext));
-
-		for (i = 0; i < f->c; i++) {
-			memmove(f->data + (f->n + ext) * (f->c - i - 1), f->data + f->n * (f->c - i - 1), sizeof(chunk) * f->n);
-			memcpy(f->data + (f->n + ext) * (f->c - i - 1) + f->n, extdata + ext * (f->c - i - 1), sizeof(chunk) * ext);
-		}
-
-		memcpy(f->care + f->n, extcare, sizeof(chunk *) * ext);
-		memcpy(f->v + f->n, extv, sizeof(chunk *) * ext);
-		f->n += ext;
-		free(extdata);
-		free(extv);
-	}
-
-	free(mask);
-	free(its);
-}
-
-void shared2least(func f, chunk* m) {
+void shared2least(func *f, chunk* m) {
 
 	register dim x, y, i, n = 0;
 	register id t;
-	chunk s[f.c], a[f.c], o[f.c];
-	memset(s, 0, sizeof(chunk) * f.c);
+	chunk s[f->c], a[f->c], o[f->c];
+	memset(s, 0, sizeof(chunk) * f->c);
 
-	for (i = 0; i < DIVBPC(f.s); i++) s[i] = ~(0ULL);
-	if (MODBPC(f.s)) s[DIVBPC(f.s)] = f.mask;
+	for (i = 0; i < DIVBPC(f->s); i++) s[i] = ~(0ULL);
+	if (MODBPC(f->s)) s[DIVBPC(f->s)] = f->mask;
 
-	for (i = 0; i < f.c; i++) {
+	for (i = 0; i < f->c; i++) {
 		a[i] = s[i] & ~m[i];
 		o[i] = m[i] & ~s[i];
 		n += __builtin_popcountll(o[i]);
 	}
 
 	if (!n) return;
-	memcpy(m, s, sizeof(chunk) * f.c);
+	memcpy(m, s, sizeof(chunk) * f->c);
 
 	do {
 		i = x = y = 0;
@@ -137,200 +79,71 @@ void shared2least(func f, chunk* m) {
 		i = 0;
 		while (!a[i++]) y += BITSPERCHUNK;
 		y += __builtin_ctzll(a[i - 1]);
-		t = f.vars[x];
-		f.vars[x] = f.vars[y];
-		f.vars[y] = t;
+		t = f->vars[x];
+		f->vars[x] = f->vars[y];
+		f->vars[y] = t;
 		#pragma omp parallel for private(i)
-		for (i = 0; i < f.n; i++) SWAP(f.data + i, f.care[i], x, y, f.n);
+		for (i = 0; i < f->n; i++) SWAP(f->data + i, f->care[i], x, y, f->n);
 		o[DIVBPC(x)] ^= 1ULL << MODBPC(x);
 		a[DIVBPC(y)] ^= 1ULL << MODBPC(y);
 	} while (--n);
 }
 
-/*
+void reordershared(func *f, id *vars) {
 
-void shared2least(func f, chunk* m) {
+	if (!memcmp(f->vars, vars, sizeof(id) * f->s)) return;
 
-	register dim x, y, i;
-	register id t;
-	chunk* s = (chunk *)calloc(f.c, sizeof(chunk));
-	chunk* z = (chunk *)calloc(f.c, sizeof(chunk));
-	chunk* a = (chunk *)malloc(sizeof(chunk) * f.c);
-	chunk* o = (chunk *)malloc(sizeof(chunk) * f.c);
-
-	for (i = 0; i < f.s / BITSPERCHUNK; i++) s[i] = ~(0ULL);
-	if (f.s % BITSPERCHUNK) s[f.s / BITSPERCHUNK] = f.mask;
-
-	for (i = 0; i < f.c; i++) {
-		a[i] = s[i] & ~m[i];
-		o[i] = m[i] & ~s[i];
-	}
-
-	memcpy(m, s, sizeof(chunk) * f.c);
-
-	while (memcmp(o, z, f.c * sizeof(chunk))) {
-		i = x = y = 0;
-		while (!o[i++]) x += BITSPERCHUNK;
-		x += __builtin_ctzll(o[i - 1]);
-		i = 0;
-		while (!a[i++]) y += BITSPERCHUNK;
-		y += __builtin_ctzll(a[i - 1]);
-		t = f.vars[x];
-		f.vars[x] = f.vars[y];
-		f.vars[y] = t;
-		#pragma omp parallel for private(i)
-		for (i = 0; i < f.n; i++) SWAP(f.data + i, x, y, f.n);
-		o[x / BITSPERCHUNK] ^= 1ULL << (x % BITSPERCHUNK);
-		a[y / BITSPERCHUNK] ^= 1ULL << (y % BITSPERCHUNK);
-	}
-
-	free(s);
-	free(z);
-	free(a);
-	free(o);
-}
-
-*/
-
-void reordershared(func f, id *vars) {
-
-	chunk s[CEIL(f.s, BITSPERCHUNK)];
-	register dim i, j;
+	register dim i, j; 
+	register const dim ds = DIVBPC(f->s);
+	register const dim cs = CEIL(f->s, BITSPERCHUNK);
 	id *v = (id *)malloc(sizeof(id) * MAXVAR);
+	for (i = 0; i < f->s; i++) v[vars[i]] = i;
 
-	for (i = 0; i < f.s; i++) v[vars[i]] = i;
-	#pragma omp parallel for private(i, s)
-	for (i = 0; i < f.n; i++) {
-		memset(s, 0, sizeof(chunk) * CEIL(f.s, BITSPERCHUNK));
-		for (j = 0; j < f.s; j++) if GET(f.data + i, j, f.n) SET(s, v[f.vars[j]]);
-		for (j = 0; j < f.s / BITSPERCHUNK; j++) f.data[j * f.n + i] = s[j];
-		if (f.mask) {
-			f.data[(f.s / BITSPERCHUNK) * f.n + i] &= ~f.mask;
-			f.data[(f.s / BITSPERCHUNK) * f.n + i] |= s[f.s / BITSPERCHUNK];
+	#pragma omp parallel for private(i)
+	for (i = 0; i < f->n; i++) {
+		chunk s[cs];
+		memset(s, 0, sizeof(chunk) * cs);
+		for (j = 0; j < f->s; j++) if GET(f->data + i, j, f->n) SET(s, v[f->vars[j]]);
+		for (j = 0; j < ds; j++) f->data[j * f->n + i] = s[j];
+
+		if (f->mask) {
+			f->data[ds * f->n + i] &= ~f->mask;
+			f->data[ds * f->n + i] |= s[ds];
+		}
+
+		if (f->care[i]) {
+			chunk c[cs];
+			memset(c, 0, sizeof(chunk) * cs);
+			for (j = 0; j < f->s; j++) if GET(f->care[i], j) SET(c, v[f->vars[j]]);
+			for (j = 0; j < ds; j++) f->care[i][j] = c[j];
+			if (f->mask) {
+				f->care[i][ds] &= ~f->mask;
+				f->care[i][ds] |= c[ds];
+			}
 		}
 	}
 
-	memcpy(f.vars, vars, sizeof(id) * f.s);
+	memcpy(f->vars, vars, sizeof(id) * f->s);
 	free(v);
 }
 
-dim uniquecombinations(func f) {
+dim uniquecombinations(func *f) {
 
-	register dim i, j, u = 1;
+	register dim i, u = 1;
 
-	for (i = 1; i < f.n; i++) {
-		for (j = 0; j < DIVBPC(f.s); j++)
-			if (f.data[j * f.n + i] != f.data[j * f.n + i - 1]) { u++; goto next; }
-		if (f.mask & (f.data[DIVBPC(f.s) * f.n + i] ^ f.data[DIVBPC(f.s) * f.n + i - 1])) u++;
-		next:;
-	}
+	for (i = 1; i < f->n; i++)
+		if (COMPARE(f->data + i, f->data + i - 1, f, f)) u++;
 
 	return u;
 }
 
-dim invuniquecombinations(func f) {
+void histogram(func *f) {
 
-	register dim i, j, u = 1;
+	register dim i, k;
+	f->h[0] = 1;
 
-	for (i = 1; i < f.n; i++) {
-		if (f.mask && (f.data[DIVBPC(f.s) * f.n + i] >> MODBPC(f.s)) ^
-		    (f.data[DIVBPC(f.s) * f.n + i - 1] >> MODBPC(f.s))) { u++; continue; }
-		for (j = DIVBPC(f.s) + (f.mask ? 1 : 0); j < f.c; j++)
-			if (f.data[j * f.n + i] != f.data[j * f.n + i - 1]) { u++; break; }
+	for (i = 1, k = 0; i < f->n; i++) {
+		if (COMPARE(f->data + i, f->data + i - 1, f, f)) k++;
+		f->h[k]++;
 	}
-
-	return u;
-}
-
-void histogram(func f) {
-
-	register dim i, j, k;
-	f.h[0] = 1;
-
-	for (i = 1, k = 0; i < f.n; i++) {
-		for (j = 0; j < DIVBPC(f.s); j++)
-			if (f.data[j * f.n + i] != f.data[j * f.n + i - 1]) { k++; goto next; }
-		if (f.mask & (f.data[DIVBPC(f.s) * f.n + i] ^ f.data[DIVBPC(f.s) * f.n + i - 1])) k++;
-		next:
-		f.h[k]++;
-	}
-}
-
-void invhistogram(func f) {
-
-        register dim i, j, k;
-        f.h[0] = 1;
-
-        for (i = 1, k = 0; i < f.n; i++) {
-		if (f.mask && (f.data[DIVBPC(f.s) * f.n + i] >> MODBPC(f.s)) ^
-                    (f.data[DIVBPC(f.s) * f.n + i - 1] >> MODBPC(f.s))) { k++; goto next; }
-                for (j = DIVBPC(f.s) + (f.mask ? 1 : 0); j < f.c; j++)
-                        if (f.data[j * f.n + i] != f.data[j * f.n + i - 1]) { k++; break; }
-                next:
-                f.h[k]++;
-        }
-}
-
-void markmatchingrows(func f1, func f2, dim *n1, dim *n2, dim *hn) {
-
-	register dim i1, i2, j1, j2;
-	i1 = i2 = j1 = j2 = *n1 = *n2 = *hn = 0;
-	register char cmp;
-
-	while (i1 != f1.n && i2 != f2.n)
-		if ((cmp = COMPARE(0, f1.data + i1, f2.data + i2, f1, f2)))
-			if (cmp < 0) i1 += f1.h[j1++];
-			else i2 += f2.h[j2++];
-		else {
-			//for (i = i1; i < i1 + f1.h[j1]; i++) SET(f1.rmask, i);
-			//for (i = i2; i < i2 + f2.h[j2]; i++) SET(f2.rmask, i);
-			SET(f1.hmask, j1);
-			SET(f2.hmask, j2);
-			(*n1) += f1.h[j1];
-			(*n2) += f2.h[j2];
-			i1 += f1.h[j1++];
-			i2 += f2.h[j2++];
-			(*hn)++;
-		}
-}
-
-void removenonmatchingrows(func *f1, func *f2) {
-
-	register dim i, i1, i2, j, j1, j2;
-	i1 = i2 = j1 = j2 = 0;
-	register char cmp;
-	register func *f;
-	register int k;
-
-	while (i1 != f1->n && i2 != f2->n)
-		if ((cmp = COMPARE(0, f1->data + i1, f2->data + i2, *f1, *f2))) {
-			if (cmp < 0) f = f1, i = i1, j = j1;
-			else f = f2, i = i2, j = j2;
-			for (k = f->c - 1; k >= 0; k--)
-			memmove(f->data + i + k * f->n, f->data + i + k * f->n + f->h[j], sizeof(chunk) * ((f->c - k) * (f->n - f->h[j]) - i));
-			//printf("%u %u\n", i1, i2);
-			//for (k = 0; k < f->c; k++) {
-			//	memmove(f->data + i + (f->c - k - 1) * f->n, f->data + i + (f->c - k - 1) * f->n + f->h[j],
-			//	sizeof(chunk) * (k * (f->n - f->h[j]) + f->n - i - f->h[j]));
-			//	sizeof(chunk) * ((k + 1) * (f->n - f->h[j]) - i));
-			//}
-			f->n -= f->h[j];
-			memmove(f->h + j, f->h + j + 1, sizeof(dim) * (f->hn - j - 1));
-			(f->hn)--;
-		}
-		else {
-			i1 += f1->h[j1++];
-			i2 += f2->h[j2++];
-		}
-
-	if (i1 != f1->n) f = f1, i = i1, j = j1;
-	else f = f2, i = i2, j = j2;
-	for (k = f->c - 2; k >= 0; k--)
-	memmove(f->data + i + k * f->n, f->data + (k + 1) * f->n, sizeof(chunk) * i * (f->c - k - 1));
-	f->hn = j;
-	f->n = i;
-	f1->data = (chunk *)realloc(f1->data, sizeof(chunk) * f1->n * f1->c);
-	f2->data = (chunk *)realloc(f2->data, sizeof(chunk) * f2->n * f2->c);
-	f1->h = (dim *)realloc(f1->h, sizeof(dim) * f1->hn);
-	f2->h = (dim *)realloc(f2->h, sizeof(dim) * f2->hn);
 }

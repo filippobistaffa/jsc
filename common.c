@@ -1,25 +1,38 @@
 #include "jsc.h"
 
-void randomvars(func f) {
+__attribute__((always_inline)) inline
+void shuffle(void *array, size_t n, size_t size) {
 
-	assert(MAXVAR > f.m);
-	register dim i, j;
-	register id v;
+	uint8_t tmp[size];
+	uint8_t *arr = (uint8_t *)array;
 
-	for (i = 0; i < f.m; i++) {
-		random:
-		v = rand() % MAXVAR;
-		for (j = 0; j < i; j++)
-			if (f.vars[j] == v)
-			goto random;
-		f.vars[i] = v;
+	if (n > 1) {
+		size_t i;
+		for (i = 0; i < n - 1; ++i) {
+			size_t rnd = (size_t) rand();
+			size_t j = i + rnd / (RAND_MAX / (n - i) + 1);
+			memcpy(tmp, arr + j * size, size);
+			memcpy(arr + j * size, arr + i * size, size);
+			memcpy(arr + i * size, tmp, size);
+		}
 	}
 }
 
-void randomvalues(func f) {
+void randomvars(func *f) {
+
+	assert(MAXVAR > f->m);
+	id vars[MAXVAR];
+	register dim i;
+
+	for (i = 0; i < MAXVAR; i++) vars[i] = i;
+	shuffle(vars, MAXVAR, sizeof(id));
+	memcpy(f->vars, vars, sizeof(id) * f->m);
+}
+
+void randomvalues(func *f) {
 
 	register dim i;
-	for (i = 0; i < f.n; i++) f.v[i] = (value)rand()*MAXVALUE/RAND_MAX;
+	for (i = 0; i < f->n; i++) f->v[i] = (value)rand() * MAXVALUE / RAND_MAX;
 }
 
 void sharedmasks(func *f1, chunk* s1, func *f2, chunk* s2) {

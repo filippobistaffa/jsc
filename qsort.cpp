@@ -27,7 +27,7 @@
                                    if (!cmp) cmp = ((F)->mask ? CMP((F)->mask & (A)[(DIVBPC((F)->s)) * (F)->n], (F)->mask & (B)[(DIVBPC((F)->s)) * (G)->n]) : 0); cmp; })
 
 #define CARECOMPARE(A, B, S, MASK) ({ register const dim ds = DIVBPC(S); register char cmp = memcmp(A, B, sizeof(chunk) * ds); \
-				      if (!cmp && MASK) cmp = CMP((A)[ds] & MASK, (A)[ds] & MASK); cmp; })
+				      if (!cmp && MASK) cmp = CMP((A)[ds] & MASK, (B)[ds] & MASK); cmp; })
 
 #define COMPARE(A, B, F, G) ({ register chunk *const ca = (F)->care[(A) - (F)->data]; register chunk *const cb = (G)->care[(B) - (G)->data]; \
 			       register char cmp = DATACOMPARE(A, B, F, G); if (!cmp) { if (ca && cb) cmp = CARECOMPARE(ca, cb, (F)->s, (F)->mask); \
@@ -237,6 +237,9 @@ void sort(func *f) {
 				register value tmp = *(f->v + (run_ptr - base_ptr));
 				memmove(f->v + (tmp_ptr - base_ptr) + 1, f->v + (tmp_ptr - base_ptr), sizeof(value) * (run_ptr - tmp_ptr));
 				*(f->v + (tmp_ptr - base_ptr)) = tmp;
+				register chunk *tmpcare = *(f->care + (run_ptr - base_ptr));
+				memmove(f->care + (tmp_ptr - base_ptr) + 1, f->care + (tmp_ptr - base_ptr), sizeof(value) * (run_ptr - tmp_ptr));
+				*(f->care + (tmp_ptr - base_ptr)) = tmpcare;
 			}
 		}
 	}

@@ -3,9 +3,9 @@
 
 void randomdata(func *f);
 
-void printrow(func *f, dim i);
+void printrow(const func *f, dim i);
 
-void print(func *f, chunk *s = NULL);
+void print(const func *f, const chunk *s = NULL);
 
 void shared2least(func *f, chunk* m);
 

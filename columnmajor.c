@@ -14,7 +14,7 @@ void randomdata(func *f) { // assumes BITSPERCHUNK == 64
 #define FORMAT "%" WIDTH "u"
 #define BITFORMAT "%" WIDTH "zu"
 
-void printrow(func *f, dim i) {
+void printrow(const func *f, dim i) {
 
 	register dim j, k;
 
@@ -32,7 +32,7 @@ void printrow(func *f, dim i) {
 	printf(" = %u (%p)\n", f->v[i], f->care[i]);
 }
 
-void print(func *f, chunk *s) {
+void print(const func *f, const chunk *s) {
 
 	register dim i;
 

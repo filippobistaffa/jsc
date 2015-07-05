@@ -44,45 +44,48 @@ void exclprefixsum(type *hi, type *ho, unsigned hn) {
 }
 
 template <bool compute = false> inline
-void nestedloop(dim *bits, chunk *masks, dim *idx, const dim *initbits, const chunk *initmasks, const dim *popcnt, dim l, dim n, dim s, dim c, dim *j,
-		dim offs = 0, dim i = 0, func *f1 = NULL, func *f2 = NULL, func *fd = NULL, const dim *map = NULL) {
+void nestedloop(dim *bits, chunk *masks, dim *idx, const dim *initbits, const chunk *initmasks, const dim *popcnt,
+		dim l, dim n, dim s, dim c, dim *j, dim offs = 0, dim i = 0,
+		const func *f1 = NULL, const func *f2 = NULL, const dim *pfxh1 = NULL, const dim *pfxh2 = NULL, func *fd = NULL, const dim *map = NULL) {
 
 	if (l == n) {
 		if (!duplicate(bits, n)) {
 			//printbuf(idx, n, "idx");
 			//printbuf(bits, n, "bits");
 			if (compute) {
-				//puts("computation");
-				register dim k, e = offs + *j;
-				for (k = 0; k < fd->c; k++) fd->data[k * fd->n + e] = f1->data[k * f1->n + i];
-				fd->care[e] = (chunk *)malloc(sizeof(chunk) * fd->c);
-				memcpy(fd->care[e], f1->care[i], sizeof(chunk) * fd->c);
-				fd->v[e] = f1->v[i];
+				register dim h;
+				for (h = 0; h < f1->h[i]; h++) {
+					//puts("computation");
+					register dim k, e = offs + (*j) * f1->h[i] + h;
+					for (k = 0; k < fd->c; k++) fd->data[k * fd->n + e] = f1->data[k * f1->n + pfxh1[i] + h];
+					fd->care[e] = (chunk *)malloc(sizeof(chunk) * fd->c);
+					memcpy(fd->care[e], f1->care[pfxh1[i] + h], sizeof(chunk) * fd->c);
+					fd->v[e] = f1->v[pfxh1[i] + h];
 
-				for (k = 0; k < n; k++) {
-					chunk tmp[c];
-					memset(tmp, 0, sizeof(chunk) * c);
-					MASKANDNOT(initmasks + k * c, masks + k * c, tmp, c);
-					//printf("tmp %u\n", k);
-					//printmask(tmp, s);
-					MASKOR(fd->care[e], tmp, fd->care[e], c);
-					register dim j, b, ntmp = MASKPOPCNT(tmp, c);
-					for (j = 0, b = MASKFFS(tmp, c); j < ntmp; j++, b = MASKCLEARANDFFS(tmp, b, c))
-						if (GET(f2->data + map[k], b, f2->n)) fd->data[DIVBPC(b) * fd->n + e] |= 1ULL << MODBPC(b);
-					SET(fd->care[e], bits[k]);
-					if (!GET(f2->data + map[k], bits[k], f2->n)) fd->data[DIVBPC(bits[k]) * fd->n + e] |= 1ULL << MODBPC(bits[k]);
+					for (k = 0; k < n; k++) {
+						chunk tmp[c];
+						memset(tmp, 0, sizeof(chunk) * c);
+						MASKANDNOT(initmasks + k * c, masks + k * c, tmp, c);
+						//printf("tmp %u\n", k);
+						//printmask(tmp, s);
+						MASKOR(fd->care[e], tmp, fd->care[e], c);
+						register dim j, b, ntmp = MASKPOPCNT(tmp, c);
+						for (j = 0, b = MASKFFS(tmp, c); j < ntmp; j++, b = MASKCLEARANDFFS(tmp, b, c))
+							if (GET(f2->data + map[k], b, f2->n)) fd->data[DIVBPC(b) * fd->n + e] |= 1ULL << MODBPC(b);
+						SET(fd->care[e], bits[k]);
+						if (!GET(f2->data + map[k], bits[k], f2->n)) fd->data[DIVBPC(bits[k]) * fd->n + e] |= 1ULL << MODBPC(bits[k]);
+					}
+
+					if (MASKPOPCNT(fd->care[e], fd->c) == fd->m) { free(fd->care[e]); fd->care[e] = NULL; }
 				}
-
-				if (MASKPOPCNT(fd->care[e], fd->c) == fd->m) { free(fd->care[e]); fd->care[e] = NULL; }
 			}
-			//puts("");
 			(*j)++;
 		}
 	} else {
 		for (bits[l] = initbits[l], memcpy(masks + l * c, initmasks + l * c, sizeof(chunk) * c), idx[l] = 0;
 		     idx[l] < popcnt[l]; idx[l]++, bits[l] = MASKCLEARANDFFS(masks + l * c, bits[l], c)) {
 			//printmask(masks + l * c, s);
-			nestedloop<compute>(bits, masks, idx, initbits, initmasks, popcnt, l + 1, n, s, c, j, offs, i, f1, f2, fd, map);
+			nestedloop<compute>(bits, masks, idx, initbits, initmasks, popcnt, l + 1, n, s, c, j, offs, i, f1, f2, pfxh1, pfxh2, fd, map);
 		}
 	}
 }
@@ -110,18 +113,19 @@ void nestedloop(dim *bits, chunk *masks, dim *idx, const dim *initbits, const ch
 // fd = difference between f1 and f2
 
 __attribute__((always_inline)) inline
-void instancedontcare(func *f1, func *f2, func *fi, func *fd) {
+void instancedontcare(const func *f1, const func *f2, const dim *pfxh1, const dim *pfxh2, func *fi, func *fd) {
 
-	register dim i, a, j, b, tni = 0, tnd = 0;
+	register dim i, j, tni = 0, tnd = 0;
 	register const dim cs = CEILBPC(f1->s);
-	register const dim cn = CEILBPC(f1->n);
+	register const dim cn = CEILBPC(f1->hn);
 	register const dim ds = DIVBPC(f1->s);
 	register const dim ms = MODBPC(f1->s);
-	register const dim f1nf2n = f1->n * f2->n;
+	register const dim f1nf2n = f1->hn * f2->hn;
 
+	register chunk *tmpmask = (chunk *)calloc(cn, sizeof(chunk));
 	register chunk *nodifference = (chunk *)calloc(cn, sizeof(chunk));
 	register chunk *nointersection = (chunk *)calloc(cn, sizeof(chunk));
-	ONES(nointersection, f1->n, cn);
+	ONES(nointersection, f1->hn, cn);
 
 	register chunk *notandmasks = (chunk *)calloc(f1nf2n * cs, sizeof(chunk));
 	register chunk *masks = (chunk *)malloc(sizeof(chunk) * f1nf2n * cs);
@@ -132,20 +136,25 @@ void instancedontcare(func *f1, func *f2, func *fi, func *fd) {
 	register dim idx[f1nf2n];
 	register dim map[f1nf2n];
 
-	register dim ni[f1->n];
-	register dim pfxni[f1->n];
-	register dim nd[f1->n];
-	register dim pfxnd[f1->n];
-	memset(ni, 0, sizeof(dim) * f1->n);
-	memset(nd, 0, sizeof(dim) * f1->n);
+	register dim ni[f1->hn];
+	register dim pfxni[f1->hn];
+	register dim nd[f1->hn];
+	register dim pfxnd[f1->hn];
+
+	register dim nhi[f1->hn];
+	register dim nhd[f1->hn];
+	memset(ni, 0, sizeof(dim) * f1->hn);
+	memset(nd, 0, sizeof(dim) * f1->hn);
+	memset(nhi, 0, sizeof(dim) * f1->hn);
+	memset(nhd, 0, sizeof(dim) * f1->hn);
 
 	register chunk ones[cs];
 	ONES(ones, f1->s, cs);
 
-	// TODO: Could be parallelised, reduction over tni and tnd
-	for (a = 0, i = 0; a < f1->hn; a++, i += f1->h[a]) {
+	// TODO: Could be parallelised, reduction over t[ and tnd
+	for (i = 0; i < f1->hn; i++) {
 
-		register const dim if2n = i * f2->n;
+		register const dim if2n = i * f2->hn;
 		register chunk *const inotandmasks = notandmasks + if2n;
 		register chunk *const imasks = masks + if2n;
 		register dim *const ipopcnt = popcnt + if2n;
@@ -154,42 +163,48 @@ void instancedontcare(func *f1, func *f2, func *fi, func *fd) {
 		register dim *const iidx = idx + if2n;
 		register dim *const imap = map + if2n;
 
-		for (b = 0, j = 0; b < f2->hn; b++, j += f2->h[b])
-			if (INTERSECT(f1, i, f2, j)) {
+		for (j = 0; j < f2->hn; j++)
+			if (INTERSECT(f1, pfxh1[i], f2, pfxh2[j])) {
 				CLEAR(nointersection, i);
-				if (DIFFERENCE(f1, i, f2, j, cs, ones)) {
-					MASKNOTAND(f1->care[i], f2->care[j] ? f2->care[j] : ones, inotandmasks + ni[i] * cs, cs);
-					if (ms) inotandmasks[ni[i] * cs + cs - 1] &= ones[cs - 1];
-					//printmask(inotandmasks + m * cs, f1->s);
-					ipopcnt[ni[i]] = MASKPOPCNT(inotandmasks + ni[i] * cs, cs);
-					iinit[ni[i]] = MASKFFS(inotandmasks + ni[i] * cs, cs);
+				if (DIFFERENCE(f1, pfxh2[j], f2, pfxh2[j], cs, ones)) {
+					MASKNOTAND(f1->care[pfxh2[j]], f2->care[pfxh2[j]] ? f2->care[pfxh2[j]] : ones, inotandmasks + nhi[i] * cs, cs);
+					if (ms) inotandmasks[nhi[i] * cs + cs - 1] &= ones[cs - 1];
+					ipopcnt[nhi[i]] = MASKPOPCNT(inotandmasks + nhi[i] * cs, cs);
+					iinit[nhi[i]] = MASKFFS(inotandmasks + nhi[i] * cs, cs);
 					CLEAR(nodifference, i);
-					imap[ni[i]] = j;
-					ni[i]++;
+					imap[nhi[i]] = pfxh2[j];
+					nhi[i]++;
 				}
 			}
 
-		if (ni[i]) {
+		if (nhi[i]) {
 			//printf("Row %u\n", i);
 			//printbuf(init, m, "init");
 			//printbuf(popcnt, m, "popcnt");
-			//printbuf(imap, ni[i], "imap");
-			nestedloop<false>(ibits, imasks, iidx, iinit, inotandmasks, ipopcnt, 0, ni[i], f1->s, cs, nd + i);
+			//printbuf(imap, nhi[i], "imap");
+			nestedloop<false>(ibits, imasks, iidx, iinit, inotandmasks, ipopcnt, 0, nhi[i], f1->s, cs, nhd + i);
 		}
 
-		tni += ni[i];
-		tnd += nd[i];
+		tni += (ni[i] = nhi[i] * f1->h[i]);
+		tnd += (nd[i] = nhd[i] * f1->h[i]);
 	}
-
-	printmask(nointersection, f1->n);
-	printmask(nodifference, f1->n);
-
-	register const dim nni = MASKPOPCNT(nointersection, cn);
-	register const dim nnd = MASKPOPCNT(nodifference, cn);
 
 	fi->m = fd->m = f1->m;
 	fi->s = fd->s = f1->s;
 	fi->d = fd->d = f1->d;
+	fi->mask = fd->mask = f1->mask;
+
+	printmask(nodifference, f1->hn);
+	printmask(nointersection, f1->hn);
+	register const dim popnd = MASKPOPCNT(nodifference, cn);
+	register const dim popni = MASKPOPCNT(nointersection, cn);
+	register dim nnd = 0, nni = 0;
+
+	memcpy(tmpmask, nodifference, sizeof(chunk) * cn);
+	for (i = 0, j = MASKFFS(tmpmask, cn); i < popnd; i++, j = MASKCLEARANDFFS(tmpmask, j, cn)) nnd += f1->h[j];
+	memcpy(tmpmask, nointersection, sizeof(chunk) * cn);
+	for (i = 0, j = MASKFFS(tmpmask, cn); i < popni; i++, j = MASKCLEARANDFFS(tmpmask, j, cn)) nni += f1->h[j];
+
 	fi->n = tni + nnd;
 	fd->n = tnd + nni;
 	ALLOCFUNC(fi);
@@ -197,39 +212,48 @@ void instancedontcare(func *f1, func *f2, func *fi, func *fd) {
 	memcpy(fi->vars, f1->vars, sizeof(id) * f1->m);
 	memcpy(fd->vars, f1->vars, sizeof(id) * f1->m);
 
-	for (i = 0, j = MASKFFS(nointersection, cn); i < nni; i++, j = MASKCLEARANDFFS(nointersection, j, cn)) {
-		register dim k;
-		for (k = 0; k < f1->c; k++) fd->data[k * fd->n + i] = f1->data[k * f1->n + j];
-		fd->v[i] = f1->v[j];
-		if (f1->care[j]) {
-			fd->care[i] = (chunk *)malloc(sizeof(chunk) * f1->c);
-			memcpy(fd->care[i], f1->care[j], sizeof(chunk) * f1->c);
+	register dim l, h, k;
+
+	for (i = 0, l = 0, j = MASKFFS(nodifference, cn); i < popnd; i++, l += f1->h[j], j = MASKCLEARANDFFS(nodifference, j, cn)) {
+		for (h = 0; h < f1->h[j]; h++) {
+			register const dim pfxl = pfxh1[j] + l;
+			for (k = 0; k < f1->c; k++) fi->data[k * fi->n + l] = f1->data[k * f1->hn + pfxl];
+			fi->v[i] = f1->v[pfxl];
+			if (f1->care[pfxl]) {
+				fi->care[l] = (chunk *)malloc(sizeof(chunk) * f1->c);
+				memcpy(fi->care[l], f1->care[pfxl], sizeof(chunk) * f1->c);
+			}
 		}
 	}
 
-	for (i = 0, j = MASKFFS(nodifference, cn); i < nnd; i++, j = MASKCLEARANDFFS(nodifference, j, cn)) {
-		register dim k;
-		for (k = 0; k < f1->c; k++) fi->data[k * fi->n + i] = f1->data[k * f1->n + j];
-		fi->v[i] = f1->v[j];
-		if (f1->care[j]) {
-			fi->care[i] = (chunk *)malloc(sizeof(chunk) * f1->c);
-			memcpy(fi->care[i], f1->care[j], sizeof(chunk) * f1->c);
+	for (i = 0, l = 0, j = MASKFFS(nointersection, cn); i < popni; i++, l += f1->h[j], j = MASKCLEARANDFFS(nointersection, j, cn)) {
+		for (h = 0; h < f1->h[j]; h++) {
+			register const dim pfxl = pfxh1[j] + l;
+			for (k = 0; k < f1->c; k++) fd->data[k * fd->n + l] = f1->data[k * f1->hn + pfxl];
+			fd->v[i] = f1->v[pfxl];
+			if (f1->care[pfxl]) {
+				fd->care[l] = (chunk *)malloc(sizeof(chunk) * f1->c);
+				memcpy(fd->care[l], f1->care[pfxl], sizeof(chunk) * f1->c);
+			}
 		}
 	}
 
-	exclprefixsum(ni, pfxni, f1->n);
-	exclprefixsum(nd, pfxnd, f1->n);
-	printbuf(ni, f1->n, "ni");
-	printbuf(nd, f1->n, "nd");
-	printbuf(pfxni, f1->n, "pfxni");
-	printbuf(pfxnd, f1->n, "pfxnd");
+	exclprefixsum(ni, pfxni, f1->hn);
+	exclprefixsum(nd, pfxnd, f1->hn);
+	printbuf(nhi, f1->hn, "nhi");
+	printbuf(nhd, f1->hn, "nhd");
+	printbuf(ni, f1->hn, "ni");
+	printbuf(nd, f1->hn, "nd");
+	printbuf(pfxni, f1->hn, "pfxni");
+	printbuf(pfxnd, f1->hn, "pfxnd");
 
 	// TODO: Could be parallelised
-	for (i = 0, j = 0; i < f1->n; i++) {
+	for (i = 0, j = 0; i < f1->hn; i++) {
 
-		if (ni[i]) {
+		if (nhi[i]) {
 
-			register const dim if2n = i * f2->n;
+			register dim a, b;
+			register const dim if2n = i * f2->hn;
 			register chunk *const inotandmasks = notandmasks + if2n;
 			register chunk *const imasks = masks + if2n;
 			register dim *const ipopcnt = popcnt + if2n;
@@ -238,38 +262,43 @@ void instancedontcare(func *f1, func *f2, func *fi, func *fd) {
 			register dim *const iidx = idx + if2n;
 			register dim *const imap = map + if2n;
 
-			nestedloop<true>(ibits, imasks, iidx, iinit, inotandmasks, ipopcnt, 0, ni[i], f1->s, cs, &j, nni + pfxnd[i], i, f1, f2, fd, imap);
+			nestedloop<true>(ibits, imasks, iidx, iinit, inotandmasks, ipopcnt, 0, nhi[i], f1->s, cs, &j, nni + pfxnd[i], i, f1, f2, pfxh1, pfxh2, fd, imap);
 
-			for (a = 0, j = nnd + pfxni[i]; a < ni[i]; a++, j++) {
+			for (a = 0, j = nnd + pfxni[i]; a < nhi[i]; a++, j += f1->h[i]) {
 
 				register const dim im = imap[a];
 				register dim h, k;
 
-				fi->v[j] = f1->v[i];
-				for (k = 0; k < f1->c; k++) fi->data[k * fi->n + j] = f1->data[k * f1->n + i];
+				for (b = 0; b < f1->h[i]; b++) {
 
-				fi->care[j] = (chunk *)malloc(sizeof(chunk) * fi->c);
-				memcpy(fi->care[j], f1->care[i], sizeof(chunk) * fi->c);
-				MASKOR(f1->care[i] ? f1->care[i] : ones, f2->care[im] ? f2->care[im] : ones, fi->care[j], ds);
+					register const dim jb = j + b;
+					register const dim pfxb = pfxh1[i] + b;
+					fi->v[jb] = f1->v[pfxb];
+					for (k = 0; k < f1->c; k++) fi->data[k * fi->n + jb] = f1->data[k * f1->n + pfxb];
 
-				if (ms) {
-					fi->care[j][ds] &= ~f1->mask;
-					fi->care[j][ds] |= (f1->care[i][ds] | f2->care[im][ds]) & f1->mask;
-				}
+					fi->care[jb] = (chunk *)malloc(sizeof(chunk) * fi->c);
+					memcpy(fi->care[jb], f1->care[pfxb], sizeof(chunk) * fi->c);
+					MASKOR(f1->care[pfxb] ? f1->care[pfxb] : ones, f2->care[im] ? f2->care[im] : ones, fi->care[jb], ds);
 
-				if (MASKPOPCNT(fi->care[j], fi->c) == fi->m) { free(fi->care[j]); fi->care[j] = NULL; }
+					if (ms) {
+						fi->care[jb][ds] &= ~f1->mask;
+						fi->care[jb][ds] |= (f1->care[pfxb][ds] | f2->care[im][ds]) & f1->mask;
+					}
 
-				chunk tmp[cs];
-				memset(tmp, 0, sizeof(chunk) * cs);
-				MASKANDNOT(f2->care[im], f1->care[i], tmp, cs);
-				printmask(tmp, f1->s);
-				if (ms) tmp[ds] &= f1->mask;
-				register const dim poptmp = MASKPOPCNT(tmp, cs);
-				printf("poptmp = %u\n", poptmp);
+					if (MASKPOPCNT(fi->care[jb], fi->c) == fi->m) { free(fi->care[jb]); fi->care[jb] = NULL; }
 
-				for (h = 0, k = MASKFFS(tmp, cs); h < poptmp; h++, k = MASKCLEARANDFFS(tmp, k, cs)) {
-					if GET(f2->data + im, k, f2->n) fi->data[DIVBPC(k) * fi->n + j] |= 1ULL << MODBPC(k);
-					printf("k = %u\n", k);
+					chunk tmp[cs];
+					memset(tmp, 0, sizeof(chunk) * cs);
+					MASKANDNOT(f2->care[im], f1->care[pfxb], tmp, cs);
+					printmask(tmp, f1->s);
+					if (ms) tmp[ds] &= f1->mask;
+					register const dim poptmp = MASKPOPCNT(tmp, cs);
+					printf("poptmp = %u\n", poptmp);
+
+					for (h = 0, k = MASKFFS(tmp, cs); h < poptmp; h++, k = MASKCLEARANDFFS(tmp, k, cs)) {
+						if GET(f2->data + im, k, f2->hn) fi->data[DIVBPC(k) * fi->n + jb] |= 1ULL << MODBPC(k);
+						printf("k = %u\n", k);
+					}
 				}
 			}
 
@@ -279,5 +308,6 @@ void instancedontcare(func *f1, func *f2, func *fi, func *fd) {
 	free(nointersection);
 	free(nodifference);
 	free(notandmasks);
+	free(tmpmask);
 	free(masks);
 }

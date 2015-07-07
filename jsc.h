@@ -46,7 +46,6 @@
 #include "crc32.h"
 
 #include "qsort.cpp"
-#include "copymatchingrows.cpp"
 
 #ifdef __CUDACC__ // CUDA
 #include "jsc.cuh"

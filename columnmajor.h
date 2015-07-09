@@ -5,14 +5,18 @@ void randomdata(func *f);
 
 void printrow(const func *f, dim i);
 
-void print(const func *f, const chunk *s = NULL);
+void print(const func *f, const char *title = NULL, const chunk *s = NULL);
 
 void shared2least(func *f, chunk* m);
 
 void reordershared(func *f, id *vars);
 
-dim uniquecombinations(func *f);
+dim uniquecombinations(const func *f);
 
-void histogram(func *f);
+void histogram(const func *f);
+
+dim intuniquecombinations(const func *f);
+
+void inthistogram(const func *f);
 
 #endif  /* COLUMNMAJOR_H_ */

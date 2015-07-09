@@ -40,6 +40,17 @@
 			 if (_i == (C)) _ffs = 0; else _ffs += __builtin_ffsll(*_buf) - 1; _ffs; })
 #define MASKCLEARANDFFS(A, B, C) ({ CLEAR(A, B); MASKFFS(A, C); })
 
+template <typename type>
+__attribute__((always_inline)) inline
+void exclprefixsum(type *hi, type *ho, unsigned hn) {
+
+	if (hn) {
+		register unsigned i;
+		ho[0] = 0;
+		for (i = 1; i < hn; i++) ho[i] = hi[i - 1] + ho[i - 1];
+	}
+}
+
 #ifdef __cplusplus
 extern "C"
 #endif

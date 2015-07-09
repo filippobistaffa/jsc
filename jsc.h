@@ -35,17 +35,13 @@
 #include "colours.h"
 #include "types.h"
 
-#ifdef ROWMAJOR
-#include "rowmajor.h"
-#else
 #include "columnmajor.h"
-#endif
-
 #include "marsenne.h"
 #include "common.h"
 #include "crc32.h"
 
 #include "qsort.cpp"
+#include "instance.cpp"
 
 #ifdef __CUDACC__ // CUDA
 #include "jsc.cuh"

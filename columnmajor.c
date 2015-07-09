@@ -32,8 +32,9 @@ void printrow(const func *f, dim i) {
 	printf(" = %u (%p)\n", f->v[i], f->care[i]);
 }
 
-void print(const func *f, const chunk *s) {
+void print(const func *f, const char *title, const chunk *s) {
 
+	if (title) printf("%s\n", title);
 	register dim i;
 
 	for (i = 0; i < f->m; i++)
@@ -93,7 +94,7 @@ void reordershared(func *f, id *vars) {
 
 	if (!memcmp(f->vars, vars, sizeof(id) * f->s)) return;
 
-	register dim i, j; 
+	register dim i, j;
 	register const dim ds = DIVBPC(f->s);
 	register const dim cs = CEIL(f->s, BITSPERCHUNK);
 	id *v = (id *)malloc(sizeof(id) * MAXVAR);
@@ -127,7 +128,7 @@ void reordershared(func *f, id *vars) {
 	free(v);
 }
 
-dim uniquecombinations(func *f) {
+dim uniquecombinations(const func *f) {
 
 	register dim i, u = 1;
 
@@ -137,13 +138,34 @@ dim uniquecombinations(func *f) {
 	return u;
 }
 
-void histogram(func *f) {
+void histogram(const func *f) {
 
 	register dim i, k;
 	f->h[0] = 1;
 
 	for (i = 1, k = 0; i < f->n; i++) {
 		if (COMPARE(f->data + i, f->data + i - 1, f, f)) k++;
+		f->h[k]++;
+	}
+}
+
+dim intuniquecombinations(const func *f) {
+
+	register dim i, u = 1;
+
+	for (i = 1; i < f->n; i++)
+		if (!INTERSECT(f, i, f, i - 1)) u++;
+
+	return u;
+}
+
+void inthistogram(const func *f) {
+
+	register dim i, k;
+	f->h[0] = 1;
+
+	for (i = 1, k = 0; i < f->n; i++) {
+		if (!INTERSECT(f, i, f, i - 1)) k++;
 		f->h[k]++;
 	}
 }

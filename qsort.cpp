@@ -31,7 +31,17 @@
 
 #define COMPARE(A, B, F, G) ({ register chunk *const ca = (F)->care[(A) - (F)->data]; register chunk *const cb = (G)->care[(B) - (G)->data]; \
 			       register char cmp = DATACOMPARE(A, B, F, G); if (!cmp) { if (ca && cb) cmp = CARECOMPARE(ca, cb, (F)->s, (F)->mask); \
-			       else cmp = CMP(ca, cb); } cmp; }) 
+			       else cmp = CMP(ca, cb); } cmp; })
+
+#define INTERSECT(F1, I, F2, J) ({ register dim _i; register char cmp = 0; register chunk mask;\
+				   register chunk * const ca = (F1)->care[I]; register chunk * const cb = (F2)->care[J]; \
+				   if (!ca && !cb) cmp = DATACOMPARE((F1)->data + (I), (F2)->data + (J), F1, F2); \
+				   else { for (_i = 0; _i < DIVBPC((F1)->s); _i++) { \
+				   mask = (F1)->mask & ((ca && cb) ? ca[_i] & cb[_i] : (ca ? ca[_i] : cb[_i])); \
+				   if ((cmp = CMP((F1)->data[_i * (F1)->n + (I)] & mask, (F2)->data[_i * (F2)->n + (J)] & mask))) break; } \
+				   if (!cmp) { if ((F1)->mask) mask = (F1)->mask & ((ca && cb) ? ca[_i] & cb[_i] : (ca ? ca[_i] : cb[_i])); \
+				   cmp = ((F1)->mask ? CMP(mask & (F1)->data[(DIVBPC((F1)->s)) * (F1)->n + (I)], \
+							   mask & (F2)->data[(DIVBPC((F1)->s)) * (F2)->n + (J)]) : 0); } } !cmp; })
 
 #define _SWAP(A, B, N, C) do { if ((A) != (B)) { \
 	register chunk *__a = (A), *__b = (B), *__bp = base_ptr; \
@@ -49,9 +59,8 @@
 	} \
 } } while (0)
 
-/*template <char type = 0>
 __attribute__((always_inline)) inline
-void equalconsecutive(func f) {
+void intersectconsecutive(const func *f) {
 
 	register chunk *base_ptr = f->data;
 	register dim i = 0;
@@ -61,7 +70,7 @@ void equalconsecutive(func f) {
 		register dim j = i + 1, k = 1;
 
 		while (j < f->n) {
-			if (!COMPARE(f->data + i, f->data + j, f, f)) { // equals according to COMPARE
+			if (INTERSECT(f, i, f, j)) {
 				_SWAP(f->data + j, f->data + i + k, f->n, f->c);
 				k++;
 			}
@@ -70,7 +79,7 @@ void equalconsecutive(func f) {
 
 		i += k;
 	}
-}*/
+}
 
 // Discontinue quicksort algorithm when partition gets below this size.
 // This particular magic number was chosen to work best on a Sun 4/260.
@@ -117,7 +126,7 @@ typedef struct {
       stack size is needed (actually O(1) in this case)!  */
 
 __attribute__((always_inline)) inline
-void sort(func *f) {
+void sort(const func *f) {
 
 	register chunk *base_ptr = f->data;
 	const size_t max_thresh = MAX_THRESH;
@@ -238,7 +247,7 @@ void sort(func *f) {
 				memmove(f->v + (tmp_ptr - base_ptr) + 1, f->v + (tmp_ptr - base_ptr), sizeof(value) * (run_ptr - tmp_ptr));
 				*(f->v + (tmp_ptr - base_ptr)) = tmp;
 				register chunk *tmpcare = *(f->care + (run_ptr - base_ptr));
-				memmove(f->care + (tmp_ptr - base_ptr) + 1, f->care + (tmp_ptr - base_ptr), sizeof(value) * (run_ptr - tmp_ptr));
+				memmove(f->care + (tmp_ptr - base_ptr) + 1, f->care + (tmp_ptr - base_ptr), sizeof(chunk *) * (run_ptr - tmp_ptr));
 				*(f->care + (tmp_ptr - base_ptr)) = tmpcare;
 			}
 		}

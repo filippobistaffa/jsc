@@ -13,7 +13,9 @@
 #include <assert.h>
 #include <sys/time.h>
 
+#ifndef JSCMAIN
 #include "../cucop/params.h"
+#endif
 
 #define JOINTOPERATION(res, x, y) ((res) = (x) + (y))
 

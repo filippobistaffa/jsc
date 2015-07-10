@@ -88,15 +88,27 @@ void transpose(chunk *data, dim r, dim c) {
 	}
 }
 
-void prefixsum(dim *hi, dim *ho, dim hn) {
+void prefixsum(const dim *hi, dim *ho, dim hn) {
 
 	register dim i;
 	ho[0] = hi[0];
 	for (i = 1; i < hn; i++) ho[i] = hi[i] + ho[i - 1];
 }
 
-void histogramproduct(dim *h1, dim *h2, dim *ho, dim hn) {
+void histogramproduct(const dim *h1, const dim *h2, dim *ho, dim hn) {
 
 	register dim i;
 	for (i = 0; i < hn; i++) ho[i] = h1[i] * h2[i];
+}
+
+void printchecksum(const func *f, const char *name) {
+
+	printf("Checksum %s:\n", name);
+	printf("Data = %u\n", crc32(f->data, sizeof(chunk) * f->n * f->c));
+	if (f->h) printf("Histogram = %u\n", crc32(f->h, sizeof(dim) * f->hn));
+	register unsigned *care = (unsigned *)calloc(f->n, sizeof(unsigned));
+	register dim i;
+	for (i = 0; i < f->n; i++) if (f->care[i]) care[i] = crc32(f->care[i], sizeof(chunk) * f->c);
+	printf("Cares = %u\n", crc32(care, sizeof(unsigned) * f->n));
+	free(care);
 }

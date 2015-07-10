@@ -79,4 +79,6 @@ void prefixsum(dim *hi, dim *ho, dim hn);
 void histogramproduct(dim *h1, dim *h2, dim *ho, dim hn);
 #endif
 
+void printchecksum(const func *f, const char *name);
+
 #endif  /* COMMON_H_ */

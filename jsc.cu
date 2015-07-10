@@ -1,3 +1,7 @@
+#ifdef JSCMAIN
+#include "jsc.h"
+#endif
+
 #ifdef PRINTTIME
 static struct timeval t1, t2;
 #endif
@@ -287,39 +291,50 @@ void copyfunc(const func *f1, const func *f2, dim idx) {
 		}
 }
 
+template <typename type>
+__attribute__((always_inline)) inline
+void printsourcebuf(const type *buf, unsigned n, const char *name, unsigned id, const char *tname) {
+
+	#include <iostream>
+	register unsigned i;
+	std::cout << tname << " " << name << id << "[] = {" << *buf;
+	for (i = 1; i < n; i++) std::cout << "," << buf[i];
+	puts("};");
+}
+
+#endif
+
 __attribute__((always_inline)) inline
 func jointsum(func *f1, func *f2) {
 
 	#ifdef PRINTFUNCTIONCODE
 	register id i;
 
-	printf("f1.n = %u;\nf1.m = %u;\n", f1->n, f1->m);
-	printf("chunk data1[] = {%lu", f1->data[0]);
-	for (i = 1; i < f1->c * f1->n; i++)
-		printf(",%lu", f1->data[i]);
-	puts("};");
-	printf("value v1[] = {%f", f1->v[0]);
-	for (i = 1; i < f1->n; i++)
-		printf(",%f", f1->v[i]);
-	puts("};");
-	printf("id vars1[] = {%u", f1->vars[0]);
-	for (i = 1; i < f1->m; i++)
-		printf(",%u", f1->vars[i]);
-	puts("};");
+	printf("f1->n = %u;\nf1->m = %u;\n", f1->n, f1->m);
+	puts("ALLOCFUNC(f1);");
+	printsourcebuf(f1->data, f1->n * f1->c, "data", 1, "chunk");
+	printsourcebuf(f1->v, f1->n, "v", 1, "value");
+	printsourcebuf(f1->vars, f1->m, "vars", 1, "id");
+	printf("chunk *care1[%u] = { 0 };\n", f1->n);
 
-	printf("f2.n = %u;\nf2.m = %u;\n", f2->n, f2->m);
-	printf("chunk data2[] = {%lu", f2->data[0]);
-	for (i = 1; i < f2->c * f2->n; i++)
-		printf(",%lu", f2->data[i]);
-	puts("};");
-	printf("value v2[] = {%f", f2->v[0]);
-	for (i = 1; i < f2->n; i++)
-		printf(",%f", f2->v[i]);
-	puts("};");
-	printf("id vars2[] = {%u", f2->vars[0]);
-	for (i = 1; i < f2->m; i++)
-		printf(",%u", f2->vars[i]);
-	puts("};");
+	for (i = 0; i < f1->n; i++) if (f1->care[i]) {
+		printsourcebuf(f1->care[i], f1->c, "f1care", i, "chunk");
+		printf("care1[%u] = (chunk *)malloc(sizeof(chunk) * f1->c);\n", i);
+		printf("memcpy(care1[%u], f1care%u, sizeof(chunk) * f1->c);\n", i, i);
+	}
+
+	printf("f2->n = %u;\nf2->m = %u;\n", f2->n, f2->m);
+	puts("ALLOCFUNC(f2);");
+	printsourcebuf(f2->data, f2->n * f2->c, "data", 2, "chunk");
+	printsourcebuf(f2->v, f2->n, "v", 2, "value");
+	printsourcebuf(f2->vars, f2->m, "vars", 2, "id");
+	printf("chunk *care2[%u] = { 0 };\n", f2->n);
+
+	for (i = 0; i < f2->n; i++) if (f2->care[i]) {
+		printsourcebuf(f2->care[i], f2->c, "f2care", i, "chunk");
+		printf("care2[%u] = (chunk *)malloc(sizeof(chunk) * f2->c);\n", i);
+		printf("memcpy(care2[%u], f2care%u, sizeof(chunk) * f2->c);\n", i, i);
+	}
 	#endif
 
 	register func f3;
@@ -335,11 +350,11 @@ func jointsum(func *f1, func *f2) {
 	f3.d = f1->d;
 	f3.m = f1->m + f2->m - f1->s;
 
-	//register const dim cs12 = CEILBPC(MAX(f1->m, f2->m));
-	//chunk cc[cs12];
-	//ONES(cc, f1->s, cs12);
-	//print(f1, "f1", c1);
-	//print(f2, "f2", c2);
+	register const dim cs12 = CEILBPC(MAX(f1->m, f2->m));
+	chunk cc[cs12];
+	ONES(cc, f1->s, cs12);
+	print(f1, "f1", c1);
+	print(f2, "f2", c2);
 
 	TIMER_START(YELLOW("Shift & Reorder..."));
 	shared2least(f1, c1);
@@ -366,6 +381,9 @@ func jointsum(func *f1, func *f2) {
 	histogram(f2);
 	TIMER_STOP;
 
+	printbuf(f1->h, f1->hn, "f1->h");
+	printbuf(f2->h, f2->hn, "f2->h");
+
 	TIMER_START(YELLOW("Prefix Sum..."));
 	register dim *pfxh1, *pfxh2;
 	pfxh1 = (dim *)malloc(sizeof(dim) * f1->hn);
@@ -383,18 +401,21 @@ func jointsum(func *f1, func *f2) {
 	sort(f1i);
 	sort(f2i);
 
-	/*print(f1, "f1", cc);
+	print(f1, "f1", cc);
 	print(f1i, "f1i", cc);
 	print(f1d, "f1d", cc);
 	print(f2, "f2", cc);
 	print(f2i, "f2i", cc);
-	print(f2d, "f2d", cc);*/
+	print(f2d, "f2d", cc);
 
 	*f1 = sf1i;
 	*f2 = sf2i;
 	pfxh1 = (dim *)realloc(pfxh1, sizeof(dim) * f1->hn);
 	pfxh2 = (dim *)realloc(pfxh2, sizeof(dim) * f2->hn);
+	printbuf(f1->h, f1->hn, "f1->h");
+	printbuf(f2->h, f2->hn, "f2->h");
 
+	#ifdef __CUDACC__
 	exclprefixsum(f1->h, pfxh1, f1->hn);
 	exclprefixsum(f2->h, pfxh2, f2->hn);
 
@@ -576,6 +597,8 @@ func jointsum(func *f1, func *f2) {
 	copyfunc(&f3, f2d, f3.n - f2d->n);
 	//print(&f3, "f3", cc);
 
+	#endif
+
 	free(f1->hmask);
 	free(f2->hmask);
 	free(f1->h);
@@ -585,65 +608,32 @@ func jointsum(func *f1, func *f2) {
 	free(c1);
 	free(c2);
 
+	#ifdef __CUDACC__
 	return f3;
+	#else
+	return *f1;
+	#endif
 }
-
-#endif
 
 #ifdef JSCMAIN
 
-#include "jsc.h"
-
 int main(int argc, char *argv[]) {
 
-	/*func f1, f2, f3;
+	func sf1, sf2, *f1 = &sf1, *f2 = &sf2;
 
 	#include "functions.i"
 
-	ALLOCFUNC(f1, chunk, id, value);
-	ALLOCFUNC(f2, chunk, id, value);
+	memcpy(f1->data, data1, sizeof(chunk) * f1->c * f1->n);
+	memcpy(f1->vars, vars1, sizeof(id) * f1->m);
+	memcpy(f1->v, v1, sizeof(value) * f1->n);
+	memcpy(f1->care, care1, sizeof(chunk *) * f1->n);
 
-	memcpy(f1.data, data1, sizeof(chunk) * f1.c * f1.n);
-	memcpy(f1.vars, vars1, sizeof(id) * f1.m);
-	memcpy(f1.v, v1, sizeof(value) * f1.n);
-	memcpy(f2.data, data2, sizeof(chunk) * f2.c * f2.n);
-	memcpy(f2.vars, vars2, sizeof(id) * f2.m);
-	memcpy(f2.v, v2, sizeof(value) * f2.n);*/
+	memcpy(f2->data, data2, sizeof(chunk) * f2->c * f2->n);
+	memcpy(f2->vars, vars2, sizeof(id) * f2->m);
+	memcpy(f2->v, v2, sizeof(value) * f2->n);
+	memcpy(f2->care, care2, sizeof(chunk *) * f2->n);
 
-	func f1, f2;
-	f1.m = 25;
-	f2.m = 22;
-	f1.n = f2.n = 2;
-
-	ALLOCFUNC(f1, true);
-	ALLOCFUNC(f2, true);
-
-	id vars1[] = { 77,84,83,59,58,55,54,82,86,85,91,90,89,88,80,79,57,56,38,37,76,75,87,78,92 };
-	id vars2[] = { 79,86,23,26,25,24,80,82,83,84,88,89,92,87,90,91,75,76,81,77,78,85 };
-	memcpy(f1.vars, vars1, sizeof(id) * f1.m);
-	memcpy(f2.vars, vars2, sizeof(id) * f2.m);
-
-	f1.v[0] = 1300000;
-	f1.v[1] = 2;
-	f2.v[0] = 400000;
-	f2.v[1] = 1;
-
-	f1.care[0] = (chunk *)malloc(sizeof(chunk) * f1.c);
-	f1.care[1] = (chunk *)malloc(sizeof(chunk) * f1.c);
-	f2.care[0] = (chunk *)malloc(sizeof(chunk) * f2.c);
-	f2.care[1] = (chunk *)malloc(sizeof(chunk) * f2.c);
-	f1.care[0][0] = 1ULL << 0 | 1ULL << 2 | 1ULL << 4 | 1ULL << 6 | 1ULL << 7 | 1ULL << 9 | 1ULL << 11 | 1ULL << 13 | 1ULL << 15 | 1ULL << 17 | 1ULL << 19 | 1ULL << 21 | 1ULL << 22 | 1ULL << 24;
-	f1.care[1][0] = f1.data[1] = 1ULL << 24;
-	f2.care[0][0] = ((1ULL << 4) - 1) << 2;
-	f2.care[1][0] = ((1ULL << 18) - 1) << 2;
-	f2.data[1] = 1ULL << 2 | 1ULL << 5 | 1ULL << 11 | 1ULL << 13 | 1ULL << 16 | 1ULL << 18 | 1ULL << 7;
-
-	print(f1);
-	print(f2);
-
-	#ifdef __CUDACC__
-	jointsum(&f1, &f2, &f3);
-	#endif
+	jointsum(f1, f2);
 
 	FREEFUNC(f1);
 	FREEFUNC(f2);

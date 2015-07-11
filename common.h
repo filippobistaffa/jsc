@@ -20,6 +20,7 @@
 #define GETMACRO(_1, _2, _3, NAME, ...) NAME
 #define GET(...) GETMACRO(__VA_ARGS__, GETC, GETR)(__VA_ARGS__)
 
+#define COPYFIELDS(FO, FI) do { (FO)->d = (FI)->d; (FO)->s = (FI)->s; (FO)->mask = (FI)->mask; } while (0)
 #define ALLOCFUNC(F) do { (F)->c = CEIL((F)->m, BITSPERCHUNK); \
 			  (F)->vars = (id *)malloc(sizeof(id) * (F)->m); \
 			  (F)->v = (value *)calloc((F)->n, sizeof(value)); \
@@ -79,6 +80,6 @@ void prefixsum(dim *hi, dim *ho, dim hn);
 void histogramproduct(dim *h1, dim *h2, dim *ho, dim hn);
 #endif
 
-void printchecksum(const func *f, const char *name);
+unsigned crc32func(const func *f);
 
 #endif  /* COMMON_H_ */

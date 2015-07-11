@@ -33,15 +33,15 @@
 			       register char cmp = DATACOMPARE(A, B, F, G); if (!cmp) { if (ca && cb) cmp = CARECOMPARE(ca, cb, (F)->s, (F)->mask); \
 			       else cmp = CMP(ca, cb); } cmp; })
 
-#define INTERSECT(F1, I, F2, J) ({ register dim _i; register char cmp = 0; register chunk mask;\
+#define INTERSECT(F1, I, F2, J) ({ register dim _i; register char cmp = 0; register const dim ds = DIVBPC((F1)->s); \
 				   register chunk * const ca = (F1)->care[I]; register chunk * const cb = (F2)->care[J]; \
 				   if (!ca && !cb) cmp = DATACOMPARE((F1)->data + (I), (F2)->data + (J), F1, F2); \
-				   else { for (_i = 0; _i < DIVBPC((F1)->s); _i++) { \
+				   else { register chunk mask; for (_i = 0; _i < ds; _i++) { \
 				   mask = (F1)->mask & ((ca && cb) ? ca[_i] & cb[_i] : (ca ? ca[_i] : cb[_i])); \
 				   if ((cmp = CMP((F1)->data[_i * (F1)->n + (I)] & mask, (F2)->data[_i * (F2)->n + (J)] & mask))) break; } \
-				   if (!cmp) { if ((F1)->mask) mask = (F1)->mask & ((ca && cb) ? ca[_i] & cb[_i] : (ca ? ca[_i] : cb[_i])); \
-				   cmp = ((F1)->mask ? CMP(mask & (F1)->data[(DIVBPC((F1)->s)) * (F1)->n + (I)], \
-							   mask & (F2)->data[(DIVBPC((F1)->s)) * (F2)->n + (J)]) : 0); } } !cmp; })
+				   if (!cmp) { if ((F1)->mask) mask = (F1)->mask & ((ca && cb) ? (ca[ds] & cb[ds]) : (ca ? ca[ds] : cb[ds])); \
+				   cmp = ((F1)->mask ? CMP(mask & (F1)->data[ds * (F1)->n + (I)], \
+							   mask & (F2)->data[ds * (F2)->n + (J)]) : 0); } } !cmp; })
 
 #define _SWAP(A, B, N, C) do { if ((A) != (B)) { \
 	register chunk *__a = (A), *__b = (B), *__bp = base_ptr; \

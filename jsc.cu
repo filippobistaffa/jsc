@@ -1,3 +1,4 @@
+
 #ifdef JSCMAIN
 #include "jsc.h"
 #endif
@@ -353,6 +354,7 @@ func jointsum(func *f1, func *f2) {
 	register const dim cs12 = CEILBPC(MAX(f1->m, f2->m));
 	chunk cc[cs12];
 	ONES(cc, f1->s, cs12);
+
 	print(f1, "f1", c1);
 	print(f2, "f2", c2);
 
@@ -362,6 +364,9 @@ func jointsum(func *f1, func *f2) {
 	reordershared(f2, f1->vars);
 	TIMER_STOP;
 
+	//print(f1, "f1", cc);
+	//print(f2, "f2", cc);
+
 	TIMER_START(YELLOW("Sort..."));
 	sort(f1);
 	sort(f2);
@@ -369,20 +374,13 @@ func jointsum(func *f1, func *f2) {
 
 	f1->hn = uniquecombinations(f1);
 	f2->hn = uniquecombinations(f2);
-	#ifdef PRINTINFO
-	printf(MAGENTA("%u unique combinations\n"), f1->hn);
-	printf(MAGENTA("%u unique combinations\n"), f2->hn);
-	#endif
 	f1->h = (dim *)calloc(f1->hn, sizeof(dim));
 	f2->h = (dim *)calloc(f2->hn, sizeof(dim));
 
-	TIMER_START(YELLOW("Histogram..."));
 	histogram(f1);
 	histogram(f2);
-	TIMER_STOP;
-
-	printbuf(f1->h, f1->hn, "f1->h");
-	printbuf(f2->h, f2->hn, "f2->h");
+	//printbuf(f1->h, f1->hn, "f1->h");
+	//printbuf(f2->h, f2->hn, "f2->h");
 
 	TIMER_START(YELLOW("Prefix Sum..."));
 	register dim *pfxh1, *pfxh2;
@@ -392,8 +390,8 @@ func jointsum(func *f1, func *f2) {
 	exclprefixsum(f2->h, pfxh2, f2->hn);
 	TIMER_STOP;
 
-	//print(f1, "f1", cc);
-	//print(f2, "f2", cc);
+	print(f1, "f1", cc);
+	print(f2, "f2", cc);
 	register func sf1i, sf2i, *f1i = &sf1i, *f2i = &sf2i;
 	register func sf1d, sf2d, *f1d = &sf1d, *f2d = &sf2d;
         instancedontcare(f1, f2, f3.m, 0, pfxh1, pfxh2, f1i, f1d);
@@ -410,17 +408,36 @@ func jointsum(func *f1, func *f2) {
 
 	*f1 = sf1i;
 	*f2 = sf2i;
+
+	f1->hn = intuniquecombinations(f1);
+	f2->hn = intuniquecombinations(f2);
+	//printf("f1->hn = %u\n", f1->hn);
+
+	#ifdef PRINTINFO
+	printf(MAGENTA("%u unique combinations\n"), f1->hn);
+	printf(MAGENTA("%u unique combinations\n"), f2->hn);
+	#endif
+
+	f1->h = (dim *)calloc(f1->hn, sizeof(dim));
+	f2->h = (dim *)calloc(f2->hn, sizeof(dim));
+
+	TIMER_START(YELLOW("Histogram..."));
+	inthistogram(f1);
+	inthistogram(f2);
+	TIMER_STOP;
+
+	//printbuf(f1->h, f1->hn, "f1->h");
+	//printbuf(f2->h, f2->hn, "f2->h");
+	assert(f1->hn == f2->hn);
+
 	pfxh1 = (dim *)realloc(pfxh1, sizeof(dim) * f1->hn);
 	pfxh2 = (dim *)realloc(pfxh2, sizeof(dim) * f2->hn);
-	printbuf(f1->h, f1->hn, "f1->h");
-	printbuf(f2->h, f2->hn, "f2->h");
 
 	#ifdef __CUDACC__
 	exclprefixsum(f1->h, pfxh1, f1->hn);
 	exclprefixsum(f2->h, pfxh2, f2->hn);
 
-	assert(f1i->hn == f2i->hn);
-	register const dim hn = f1i->hn;
+	register const dim hn = f1->hn;
 	value *v1d, *v2d, *v3d;
 	chunk *d1d, *d2d, *d3d;
 	dim *h1d, *h2d, *hpd, *pfxh1d, *pfxh2d, *pfxhpd;
@@ -565,17 +582,13 @@ func jointsum(func *f1, func *f2) {
 				if (MASKPOPCNT(f3.care[pfxhp[i] + j], f3.c) == f3.m) { free(f3.care[pfxhp[i] + j]); f3.care[pfxhp[i] + j] = NULL; }
 			}
 
-		#ifdef PRINTCHECKSUM
-		puts("Checksum...");
-		printf("Checksum Data 1 = %u (size = %zu bytes)\n", crc32(f1->data, sizeof(chunk) * f1->n * f1->c), sizeof(chunk) * f1->n * f1->c);
-		printf("Checksum Values 1 = %u (size = %zu bytes)\n", crc32(f1->v, sizeof(value) * f1->n), sizeof(value) * f1->n);
-		printf("Checksum Histogram 1 = %u (size = %zu bytes)\n", crc32(f1->h, sizeof(dim) * f1->hn), sizeof(dim) * f1->hn);
-		printf("Checksum Data 2 = %u (size = %zu bytes)\n", crc32(f2->data, sizeof(chunk) * f2->n * f2->c), sizeof(chunk) * f2->n * f2->c);
-		printf("Checksum Values 2 = %u (size = %zu bytes)\n", crc32(f2->v, sizeof(value) * f2->n), sizeof(value) * f2->n);
-		printf("Checksum Histogram 2 = %u (size = %zu bytes)\n", crc32(f2->h, sizeof(dim) * f2->hn), sizeof(dim) * f2->hn);
-		printf("Checksum Output Data = %u (size = %zu bytes)\n", crc32(f3.data, sizeof(chunk) * f3.n * f3.c), sizeof(chunk) * f3.n * f3.c);
-		printf("Checksum Output Values = %u (size = %zu bytes)\n", crc32(f3.v, sizeof(value) * f3.n), sizeof(value) * f3.n);
-		#endif
+		//#ifdef PRINTCHECKSUM
+		printf("f1i = %u\n", crc32func(f1i));
+		printf("f1d = %u\n", crc32func(f1d));
+		printf("f2i = %u\n", crc32func(f2i));
+		printf("f2d = %u\n", crc32func(f2d));
+		printf("f3 = %u\n", crc32func(&f3));
+		//#endif
 
 		cudaFree(pfxh1d);
 		cudaFree(pfxh2d);
@@ -596,11 +609,7 @@ func jointsum(func *f1, func *f2) {
 	copyfunc(&f3, f1d, f3.n - f1d->n - f2d->n);
 	copyfunc(&f3, f2d, f3.n - f2d->n);
 	//print(&f3, "f3", cc);
-
 	#endif
-
-	free(f1->hmask);
-	free(f2->hmask);
 	free(f1->h);
 	free(f2->h);
 	free(pfxh1);

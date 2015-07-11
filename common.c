@@ -101,14 +101,16 @@ void histogramproduct(const dim *h1, const dim *h2, dim *ho, dim hn) {
 	for (i = 0; i < hn; i++) ho[i] = h1[i] * h2[i];
 }
 
-void printchecksum(const func *f, const char *name) {
+unsigned crc32func(const func *f) {
 
-	printf("Checksum %s:\n", name);
-	printf("Data = %u\n", crc32(f->data, sizeof(chunk) * f->n * f->c));
-	if (f->h) printf("Histogram = %u\n", crc32(f->h, sizeof(dim) * f->hn));
+	unsigned crc[3] = { 0 };
+	crc[0] = crc32(f->data, sizeof(chunk) * f->n * f->c);
+	crc[1] = crc32(f->v, sizeof(value) * f->n);
 	register unsigned *care = (unsigned *)calloc(f->n, sizeof(unsigned));
 	register dim i;
 	for (i = 0; i < f->n; i++) if (f->care[i]) care[i] = crc32(f->care[i], sizeof(chunk) * f->c);
-	printf("Cares = %u\n", crc32(care, sizeof(unsigned) * f->n));
+	crc[2] = crc32(care, sizeof(unsigned) * f->n);
 	free(care);
+	//printf("%u %u %u\n", crc[0], crc[1], crc[2]);
+	return crc32(crc, sizeof(unsigned) * 3);
 }

@@ -48,7 +48,7 @@ void nestedloop(dim *bits, chunk *masks, dim *idx, const dim *initbits, const ch
 				register const dim ds = DIVBPC(f1->s);
 				//if (fi) print(fi, "fi before");
 				//printf("hoffs = %u j = %u\n", hoffs, *j);
-				fd->h[hoffs + (*j)] = f1->h[i];
+				//fd->h[hoffs + (*j)] = f1->h[i];
 				//print(fi, "fi after");
 
 				register dim h;
@@ -106,7 +106,7 @@ void nestedloop(dim *bits, chunk *masks, dim *idx, const dim *initbits, const ch
 
 #define ONESIFNULL(P) ((P) ? (P) : ones)
 
-#define DIFFERENCE(F1, I, F2, J, CS, TMP) ({ /*printrow(F1, I); printrow(F2, J);*/ register char res = 0; if ((F1)->care[I]) { \
+#define DIFFERENCE(F1, I, F2, J, CS, TMP) ({ register char res = 0; if ((F1)->care[I]) { \
 					     MASKNOTAND((F1)->care[I], ONESIFNULL((F2)->care[J]), TMP, CS); \
 					     if (MASKPOPCNT(TMP, CS)) res = 1; } /*printf("%u\n", res);*/ res; })
 
@@ -116,6 +116,7 @@ void nestedloop(dim *bits, chunk *masks, dim *idx, const dim *initbits, const ch
 // fi = intersection between f1 and f2
 // fd = difference between f1 and f2
 
+template <bool joint  = true>
 __attribute__((always_inline)) inline
 void instancedontcare(const func *f1, const func *f2, dim f3m, dim moffs, const dim *pfxh1, const dim *pfxh2, func *fi, func *fd) {
 
@@ -176,6 +177,7 @@ void instancedontcare(const func *f1, const func *f2, dim f3m, dim moffs, const 
 
 		for (j = 0; j < f2->hn; j++)
 			if (INTERSECT(f1, pfxh1[i], f2, pfxh2[j])) {
+				if (!joint && i == j && f1->h[i] == 1) continue;
 				CLEAR(nointersection, i);
 				if (DIFFERENCE(f1, pfxh1[i], f2, pfxh2[j], cs, tmp)) {
 					MASKNOTAND(f1->care[pfxh1[i]], ONESIFNULL(f2->care[pfxh2[j]]), inotandmasks + nhi[i] * cs, cs);
@@ -188,7 +190,7 @@ void instancedontcare(const func *f1, const func *f2, dim f3m, dim moffs, const 
 				}
 			}
 
-		if (nhi[i]) {
+		if (joint && nhi[i]) {
 			//printf("Row %u\n", i);
 			//printbuf(init, m, "init");
 			//printbuf(popcnt, m, "popcnt");
@@ -207,9 +209,9 @@ void instancedontcare(const func *f1, const func *f2, dim f3m, dim moffs, const 
 
 	fd->m = f3m;
 	fi->m = f1->m;
-	fi->s = fd->s = f1->s;
-	fi->d = fd->d = f1->d;
-	fi->mask = fd->mask = f1->mask;
+	//fi->s = fd->s = f1->s;
+	//fi->d = fd->d = f1->d;
+	//fi->mask = fd->mask = f1->mask;
 
 	//printmask(nodifference, f1->hn);
 	//printmask(nointersection, f1->hn);
@@ -224,18 +226,20 @@ void instancedontcare(const func *f1, const func *f2, dim f3m, dim moffs, const 
 
 	fi->n = tni + nnd;
 	fd->n = tnd + nni;
-	fi->hn = tnhi + popnd;
-	fd->hn = tnhd + popni;
+	//fi->hn = tnhi + popnd;
+	//fd->hn = tnhd + popni;
 	/*printf("fi->hn = %u\n", fi->hn);
 	printf("fd->hn = %u\n", fd->hn);
 	printf("popnd = %u\n", popnd);
 	printf("popnin = %u\n", popni);*/
 	ALLOCFUNC(fi);
 	ALLOCFUNC(fd);
+	COPYFIELDS(fi, f1);
+	COPYFIELDS(fd, f1);
 	memcpy(fi->vars, f1->vars, sizeof(id) * f1->m);
 	memset(fd->vars, 0, sizeof(id) * f3m);
-	fi->h = (dim *)malloc(sizeof(dim) * fi->hn);
-	fd->h = (dim *)malloc(sizeof(dim) * fd->hn);
+	//fi->h = (dim *)malloc(sizeof(dim) * fi->hn);
+	//fd->h = (dim *)malloc(sizeof(dim) * fd->hn);
 
 	register dim l, h, k;
 
@@ -250,7 +254,7 @@ void instancedontcare(const func *f1, const func *f2, dim f3m, dim moffs, const 
 				memcpy(fi->care[lh], f1->care[pfxh], sizeof(chunk) * f1->c);
 			}
 		}
-		fi->h[i] = f1->h[j];
+		//fi->h[i] = f1->h[j];
 	}
 
 	for (i = 0, l = 0, j = MASKFFS(nointersection, cn); i < popni; i++, l += f1->h[j], j = MASKCLEARANDFFS(nointersection, j, cn)) {
@@ -278,8 +282,9 @@ void instancedontcare(const func *f1, const func *f2, dim f3m, dim moffs, const 
 				if (f1->care[pfxh]) memcpy(fd->care[lh], f1->care[pfxh], sizeof(chunk) * fd->c);
 				else ONES(fd->care[lh], f1->m, fd->c);
 			}
+			if (MASKPOPCNT(fd->care[lh], fd->c) == fd->m) { free(fd->care[lh]); fd->care[lh] = NULL; }
 		}
-		fd->h[i] = f1->h[j];
+		//fd->h[i] = f1->h[j];
 	}
 
 	exclprefixsum(ni, pfxni, f1->hn);
@@ -310,12 +315,12 @@ void instancedontcare(const func *f1, const func *f2, dim f3m, dim moffs, const 
 			register dim *const iidx = idx + if2n;
 			register dim *const imap = map + if2n;
 
-			nestedloop<true>(ibits, imasks, iidx, iinit, inotandmasks, ipopcnt, 0, nhi[i], f1->s, cs, &j,
-					 nni + pfxnd[i], popni + pfxnhd[i], moffs, i, f1, f2, pfxh1, pfxh2, fd, imap, fi);
+			if (joint) nestedloop<true>(ibits, imasks, iidx, iinit, inotandmasks, ipopcnt, 0, nhi[i], f1->s, cs, &j,
+						    nni + pfxnd[i], popni + pfxnhd[i], moffs, i, f1, f2, pfxh1, pfxh2, fd, imap, fi);
 
 			for (a = 0, j = nnd + pfxni[i]; a < nhi[i]; a++, j += f1->h[i]) {
 
-				fi->h[popnd + pfxnhi[i] + a] = f1->h[i];
+				//fi->h[popnd + pfxnhi[i] + a] = f1->h[i];
 				register const dim im = imap[a];
 				register dim h, k;
 

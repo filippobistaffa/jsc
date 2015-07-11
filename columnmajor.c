@@ -94,7 +94,7 @@ void reordershared(func *f, id *vars) {
 
 	if (!memcmp(f->vars, vars, sizeof(id) * f->s)) return;
 
-	register dim i, j;
+	register dim i;
 	register const dim ds = DIVBPC(f->s);
 	register const dim cs = CEIL(f->s, BITSPERCHUNK);
 	id *v = (id *)malloc(sizeof(id) * MAXVAR);
@@ -103,6 +103,7 @@ void reordershared(func *f, id *vars) {
 	#pragma omp parallel for private(i)
 	for (i = 0; i < f->n; i++) {
 		chunk s[cs];
+		register dim j;
 		memset(s, 0, sizeof(chunk) * cs);
 		for (j = 0; j < f->s; j++) if GET(f->data + i, j, f->n) SET(s, v[f->vars[j]]);
 		for (j = 0; j < ds; j++) f->data[j * f->n + i] = s[j];
@@ -130,32 +131,31 @@ void reordershared(func *f, id *vars) {
 
 dim uniquecombinations(const func *f) {
 
+	if (!f->n) return 0;
 	register dim i, u = 1;
-
 	for (i = 1; i < f->n; i++)
 		if (COMPARE(f->data + i, f->data + i - 1, f, f)) u++;
-
 	return u;
 }
 
 void histogram(const func *f) {
 
-	register dim i, k;
-	f->h[0] = 1;
-
-	for (i = 1, k = 0; i < f->n; i++) {
-		if (COMPARE(f->data + i, f->data + i - 1, f, f)) k++;
-		f->h[k]++;
+	if (f->n && f->h) {
+		register dim i, k;
+		f->h[0] = 1;
+		for (i = 1, k = 0; i < f->n; i++) {
+			if (COMPARE(f->data + i, f->data + i - 1, f, f)) k++;
+			f->h[k]++;
+		}
 	}
 }
 
 dim intuniquecombinations(const func *f) {
 
+	if (!f->n) return 0;
 	register dim i, u = 1;
-
 	for (i = 1; i < f->n; i++)
 		if (!INTERSECT(f, i, f, i - 1)) u++;
-
 	return u;
 }
 

@@ -1,3 +1,8 @@
+#include "../cucop/uthash/src/utarray.h"
+
+static const UT_icd dim_icd = {sizeof(dim), NULL, NULL, NULL };
+static const UT_icd chunk_icd = {sizeof(chunk), NULL, NULL, NULL };
+
 __attribute__((always_inline)) inline
 void printmask(const chunk *m, dim n) {
 
@@ -34,70 +39,80 @@ char duplicate(const type *buf, unsigned n) {
 	return 0;
 }
 
-template <bool compute = false> inline
-void nestedloop(dim *bits, chunk *masks, dim *idx, const dim *initbits, const chunk *initmasks, const dim *popcnt,
-		dim l, dim n, dim s, dim c, dim *j, dim offs = 0, dim hoffs = 0, dim moffs = 0, dim i = 0,
-		const func *f1 = NULL, const func *f2 = NULL, const dim *pfxh1 = NULL, const dim *pfxh2 = NULL, const func *fd = NULL, const dim *map = NULL,
-		const func *fi = NULL) {
+__attribute__((always_inline)) inline
+void computefd(const dim *bitsUT, dim n, const chunk *masksUT, dim c, dim i, dim nhdi, const chunk *initmasks,
+	       const func *f1, const func *f2, const dim *pfxh1, const dim *pfxh2,
+	       const func *fd, const dim *map, dim offs, dim hoffs, dim moffs) {
+
+	register const dim ds = DIVBPC(f1->s);
+	register dim j;
+
+	// could be parallelised
+	for (j = 0; j < nhdi; j++) {
+
+		register const dim *bits = bitsUT + j * n;
+		register const chunk *masks = masksUT + j * n * c;
+		register dim h;
+
+		for (h = 0; h < f1->h[i]; h++) {
+
+			register dim k, e = offs + j * f1->h[i] + h;
+			fd->care[e] = (chunk *)malloc(sizeof(chunk) * fd->c);
+			if (moffs) {
+				for (k = 0; k < ds; k++) fd->data[k * fd->n + e] = f1->data[k * f1->n + pfxh1[i] + h];
+				memcpy(fd->care[e], f1->care[pfxh1[i] + h], sizeof(chunk) * ds);
+				if (f1->mask) {
+					fd->data[ds * fd->n + e] = f1->data[ds * f1->n + pfxh1[i] + h] & f1->mask;
+					fd->care[e][ds] = f1->care[pfxh1[i] + h][ds] & f1->mask;
+					}
+					for (k = 0; k < f1->m - f1->s; k++) {
+						if (GET(f1->data + pfxh1[i] + h, f1->s + k, f1->n))
+						fd->data[DIVBPC(f1->s + moffs + k) * fd->n + e] |= 1ULL << MODBPC(f1->s + moffs + k);
+					if (GET(f1->care[pfxh1[i] + h], f1->s + k)) SET(fd->care[e], f1->s + moffs + k);
+				}
+			} else {
+				for (k = 0; k < fd->c; k++) fd->data[k * fd->n + e] = f1->data[k * f1->n + pfxh1[i] + h];
+				memcpy(fd->care[e], f1->care[pfxh1[i] + h], sizeof(chunk) * fd->c);
+			}
+			fd->v[e] = f1->v[pfxh1[i] + h] + f2->d;
+
+			for (k = 0; k < n; k++) {
+				chunk tmp[c];
+				memset(tmp, 0, sizeof(chunk) * c);
+				MASKANDNOT(initmasks + k * c, masks + k * c, tmp, c);
+				//printf("tmp %u\n", k);
+				//printmask(tmp, s);
+				MASKOR(fd->care[e], tmp, fd->care[e], c);
+				register dim j, b, ntmp = MASKPOPCNT(tmp, c);
+				for (j = 0, b = MASKFFS(tmp, c); j < ntmp; j++, b = MASKCLEARANDFFS(tmp, b, c))
+					if (GET(f2->data + map[k], b, f2->n)) fd->data[DIVBPC(b) * fd->n + e] |= 1ULL << MODBPC(b);
+				SET(fd->care[e], bits[k]);
+				if (!GET(f2->data + map[k], bits[k], f2->n)) fd->data[DIVBPC(bits[k]) * fd->n + e] |= 1ULL << MODBPC(bits[k]);
+			}
+
+			if (MASKPOPCNT(fd->care[e], fd->c) == fd->m) { free(fd->care[e]); fd->care[e] = NULL; }
+			printrow(fd, e);
+		}
+	}
+}
+
+inline void nestedloop(dim *bits, chunk *masks, dim *idx, const dim *initbits, const chunk *initmasks, const dim *popcnt,
+		       dim l, dim n, dim s, dim c, dim *j, UT_array *bitsUT, UT_array *masksUT) {
 
 	if (l == n) {
 		if (!duplicate(bits, n)) {
-			//printbuf(idx, n, "idx");
-			//printbuf(bits, n, "bits");
-			if (compute) {
-				register const dim ds = DIVBPC(f1->s);
-				//if (fi) print(fi, "fi before");
-				//printf("hoffs = %u j = %u\n", hoffs, *j);
-				//fd->h[hoffs + (*j)] = f1->h[i];
-				//print(fi, "fi after");
-
-				register dim h;
-				for (h = 0; h < f1->h[i]; h++) {
-					//puts("computation");
-					register dim k, e = offs + (*j) * f1->h[i] + h;
-					fd->care[e] = (chunk *)malloc(sizeof(chunk) * fd->c);
-					if (moffs) {
-						for (k = 0; k < ds; k++) fd->data[k * fd->n + e] = f1->data[k * f1->n + pfxh1[i] + h];
-						memcpy(fd->care[e], f1->care[pfxh1[i] + h], sizeof(chunk) * ds);
-						if (f1->mask) {
-							fd->data[ds * fd->n + e] = f1->data[ds * f1->n + pfxh1[i] + h] & f1->mask;
-							fd->care[e][ds] = f1->care[pfxh1[i] + h][ds] & f1->mask;
-						}
-						for (k = 0; k < f1->m - f1->s; k++) {
-							if (GET(f1->data + pfxh1[i] + h, f1->s + k, f1->n))
-								fd->data[DIVBPC(f1->s + moffs + k) * fd->n + e] |= 1ULL << MODBPC(f1->s + moffs + k);
-							if (GET(f1->care[pfxh1[i] + h], f1->s + k)) SET(fd->care[e], f1->s + moffs + k);
-						}
-					} else {
-						for (k = 0; k < fd->c; k++) fd->data[k * fd->n + e] = f1->data[k * f1->n + pfxh1[i] + h];
-						memcpy(fd->care[e], f1->care[pfxh1[i] + h], sizeof(chunk) * fd->c);
-					}
-					fd->v[e] = f1->v[pfxh1[i] + h] + f2->d;
-
-					for (k = 0; k < n; k++) {
-						chunk tmp[c];
-						memset(tmp, 0, sizeof(chunk) * c);
-						MASKANDNOT(initmasks + k * c, masks + k * c, tmp, c);
-						//printf("tmp %u\n", k);
-						//printmask(tmp, s);
-						MASKOR(fd->care[e], tmp, fd->care[e], c);
-						register dim j, b, ntmp = MASKPOPCNT(tmp, c);
-						for (j = 0, b = MASKFFS(tmp, c); j < ntmp; j++, b = MASKCLEARANDFFS(tmp, b, c))
-							if (GET(f2->data + map[k], b, f2->n)) fd->data[DIVBPC(b) * fd->n + e] |= 1ULL << MODBPC(b);
-						SET(fd->care[e], bits[k]);
-						if (!GET(f2->data + map[k], bits[k], f2->n)) fd->data[DIVBPC(bits[k]) * fd->n + e] |= 1ULL << MODBPC(bits[k]);
-					}
-
-					if (MASKPOPCNT(fd->care[e], fd->c) == fd->m) { free(fd->care[e]); fd->care[e] = NULL; }
-				}
-			}
+			printbuf(idx, n, "idx");
+			printbuf(bits, n, "bits");
+			register dim k;
+			for (k = 0; k < n; k++) utarray_push_back(bitsUT, bits + k);
+			for (k = 0; k < c * n; k++) utarray_push_back(masksUT, masks + k);
 			(*j)++;
 		}
 	} else {
 		for (bits[l] = initbits[l], memcpy(masks + l * c, initmasks + l * c, sizeof(chunk) * c), idx[l] = 0;
 		     idx[l] < popcnt[l]; idx[l]++, bits[l] = MASKCLEARANDFFS(masks + l * c, bits[l], c)) {
 			//printmask(masks + l * c, s);
-			nestedloop<compute>(bits, masks, idx, initbits, initmasks, popcnt, l + 1, n, s, c, j, offs, hoffs, moffs, i, f1, f2, pfxh1, pfxh2, fd, map, fi);
+			nestedloop(bits, masks, idx, initbits, initmasks, popcnt, l + 1, n, s, c, j, bitsUT, masksUT);
 		}
 	}
 }
@@ -108,7 +123,7 @@ void nestedloop(dim *bits, chunk *masks, dim *idx, const dim *initbits, const ch
 
 #define DIFFERENCE(F1, I, F2, J, CS, TMP) ({ register char res = 0; if ((F1)->care[I]) { \
 					     MASKNOTAND((F1)->care[I], ONESIFNULL((F2)->care[J]), TMP, CS); \
-					     if (MASKPOPCNT(TMP, CS)) res = 1; } /*printf("%u\n", res);*/ res; })
+					     if (MASKPOPCNT(TMP, CS)) res = 1; } res; })
 
 #define ONES(V, I, C) do { register dim _i; register const dim _mi = MODBPC(I); for (_i = 0; _i < (C); _i++) (V)[_i] = ~0ULL; \
 			   if (_mi) (V)[(C) - 1] = (1ULL << _mi) - 1; } while (0)
@@ -156,6 +171,9 @@ void instancedontcare(const func *f1, const func *f2, dim f3m, dim moffs, const 
 	memset(nhi, 0, sizeof(dim) * f1->hn);
 	memset(nhd, 0, sizeof(dim) * f1->hn);
 
+	register UT_array *bitsUT[f1->hn];
+	register UT_array *masksUT[f1->hn];
+
 	register chunk ones[cs];
 	ONES(ones, f1->s, cs);
 
@@ -195,7 +213,9 @@ void instancedontcare(const func *f1, const func *f2, dim f3m, dim moffs, const 
 			//printbuf(init, m, "init");
 			//printbuf(popcnt, m, "popcnt");
 			//printbuf(imap, nhi[i], "imap");
-			nestedloop<false>(ibits, imasks, iidx, iinit, inotandmasks, ipopcnt, 0, nhi[i], f1->s, cs, nhd + i);
+			utarray_new(bitsUT[i], &dim_icd);
+			utarray_new(masksUT[i], &chunk_icd);
+			nestedloop(ibits, imasks, iidx, iinit, inotandmasks, ipopcnt, 0, nhi[i], f1->s, cs, nhd + i, bitsUT[i], masksUT[i]);
 		}
 
 		// reduction over these
@@ -308,15 +328,23 @@ void instancedontcare(const func *f1, const func *f2, dim f3m, dim moffs, const 
 			register dim a, b;
 			register const dim if2n = i * f2->hn;
 			register chunk *const inotandmasks = notandmasks + if2n;
-			register chunk *const imasks = masks + if2n;
-			register dim *const ipopcnt = popcnt + if2n;
-			register dim *const ibits = bits + if2n;
-			register dim *const iinit = init + if2n;
-			register dim *const iidx = idx + if2n;
+			//register chunk *const imasks = masks + if2n;
+			//register dim *const ipopcnt = popcnt + if2n;
+			//register dim *const ibits = bits + if2n;
+			//register dim *const iinit = init + if2n;
+			//register dim *const iidx = idx + if2n;
 			register dim *const imap = map + if2n;
 
-			if (joint) nestedloop<true>(ibits, imasks, iidx, iinit, inotandmasks, ipopcnt, 0, nhi[i], f1->s, cs, &j,
-						    nni + pfxnd[i], popni + pfxnhd[i], moffs, i, f1, f2, pfxh1, pfxh2, fd, imap, fi);
+			if (joint) {
+				computefd((dim *)bitsUT[i]->d, nhi[i], (chunk *)masksUT[i]->d, cs, i, nhd[i], inotandmasks, f1, f2, pfxh1, pfxh2,
+					  fd, imap, nni + pfxnd[i], popni + pfxnhd[i], moffs);
+
+				utarray_free(bitsUT[i]);
+				utarray_free(masksUT[i]);
+			}
+
+			//if (joint) computefd(ibits, imasks, iidx, iinit, inotandmasks, ipopcnt, 0, nhi[i], f1->s, cs, &j,
+			//			    nni + pfxnd[i], popni + pfxnhd[i], moffs, i, f1, f2, pfxh1, pfxh2, fd, imap, fi);
 
 			for (a = 0, j = nnd + pfxni[i]; a < nhi[i]; a++, j += f1->h[i]) {
 
@@ -366,4 +394,11 @@ void instancedontcare(const func *f1, const func *f2, dim f3m, dim moffs, const 
 	free(notandmasks);
 	free(tmpmask);
 	free(masks);
+
+	/*fi->hn = uniquecombinations(fi);
+	fd->hn = uniquecombinations(fd);
+	fi->h = (dim *)malloc(sizeof(dim) * fi->hn);
+	fd->h = (dim *)malloc(sizeof(dim) * fd->hn);
+	histogram(fi);
+	histogram(fd);*/
 }

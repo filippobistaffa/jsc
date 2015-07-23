@@ -37,6 +37,8 @@ void print(const func *f, const char *title, const chunk *s) {
 	if (title) printf("%s\n", title);
 	register dim i;
 
+	//printf("Default value = %u\n", f->d);
+
 	for (i = 0; i < f->m; i++)
 		printf(i & 1 ? FORMAT : WHITE(FORMAT), i);
 	printf("\n");
@@ -129,21 +131,21 @@ void reordershared(func *f, id *vars) {
 	free(v);
 }
 
-dim uniquecombinations(const func *f) {
+dim uniquecombinations(const func *f, dim idx) {
 
 	if (!f->n) return 0;
 	register dim i, u = 1;
-	for (i = 1; i < f->n; i++)
+	for (i = 1 + idx; i < f->n; i++)
 		if (COMPARE(f->data + i, f->data + i - 1, f, f)) u++;
 	return u;
 }
 
-void histogram(const func *f) {
+void histogram(const func *f, dim idx) {
 
-	if (f->n && f->h) {
+	if (f->n - idx && f->h) {
 		register dim i, k;
 		f->h[0] = 1;
-		for (i = 1, k = 0; i < f->n; i++) {
+		for (i = 1 + idx, k = 0; i < f->n; i++) {
 			if (COMPARE(f->data + i, f->data + i - 1, f, f)) k++;
 			f->h[k]++;
 		}

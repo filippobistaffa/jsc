@@ -11,9 +11,9 @@ void shared2least(func *f, chunk* m);
 
 void reordershared(func *f, id *vars);
 
-dim uniquecombinations(const func *f);
+dim uniquecombinations(const func *f, dim idx = 0);
 
-void histogram(const func *f);
+void histogram(const func *f, dim idx = 0);
 
 dim intuniquecombinations(const func *f);
 

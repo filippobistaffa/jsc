@@ -22,6 +22,11 @@
 
 // Compare row at address A in function F with row at address B in function G
 
+#define ONESIFNULL(P) ((P) ? (P) : ones)
+
+#define ONES(V, I, C) do { register dim _i; register const dim _mi = MODBPC(I); for (_i = 0; _i < (C); _i++) (V)[_i] = ~0ULL; \
+			   if (_mi) (V)[(C) - 1] = (1ULL << _mi) - 1; } while (0)
+
 #define DATACOMPARE(A, B, F, G) ({ register dim _i; register char cmp = 0; for (_i = 0; _i < DIVBPC((F)->s); _i++) \
 				   if ((cmp = CMP((A)[_i * (F)->n], (B)[_i * (G)->n]))) break; \
                                    if (!cmp) cmp = ((F)->mask ? CMP((F)->mask & (A)[(DIVBPC((F)->s)) * (F)->n], (F)->mask & (B)[(DIVBPC((F)->s)) * (G)->n]) : 0); cmp; })
@@ -30,18 +35,12 @@
 				      if (!cmp && MASK) cmp = CMP((A)[ds] & MASK, (B)[ds] & MASK); cmp; })
 
 #define COMPARE(A, B, F, G) ({ register chunk *const ca = (F)->care[(A) - (F)->data]; register chunk *const cb = (G)->care[(B) - (G)->data]; \
-			       register char cmp = DATACOMPARE(A, B, F, G); if (!cmp) { if (ca && cb) cmp = CARECOMPARE(ca, cb, (F)->s, (F)->mask); \
-			       else cmp = CMP(ca, cb); } cmp; })
+			       register char cmp = DATACOMPARE(A, B, F, G); if (!cmp) { register const dim cs = CEILBPC((F)->s); register chunk *ones = (chunk *)calloc(cs, sizeof(chunk)); \
+			       ONES(ones, (F)->s, cs); cmp = CARECOMPARE(ONESIFNULL(ca), ONESIFNULL(cb), (F)->s, (F)->mask); free(ones); } cmp; })
 
-#define INTERSECT(F1, I, F2, J) ({ register dim _i; register char cmp = 0; register const dim ds = DIVBPC((F1)->s); \
-				   register chunk * const ca = (F1)->care[I]; register chunk * const cb = (F2)->care[J]; \
-				   if (!ca && !cb) cmp = DATACOMPARE((F1)->data + (I), (F2)->data + (J), F1, F2); \
-				   else { register chunk mask; for (_i = 0; _i < ds; _i++) { \
-				   mask = (F1)->mask & ((ca && cb) ? ca[_i] & cb[_i] : (ca ? ca[_i] : cb[_i])); \
-				   if ((cmp = CMP((F1)->data[_i * (F1)->n + (I)] & mask, (F2)->data[_i * (F2)->n + (J)] & mask))) break; } \
-				   if (!cmp) { if ((F1)->mask) mask = (F1)->mask & ((ca && cb) ? (ca[ds] & cb[ds]) : (ca ? ca[ds] : cb[ds])); \
-				   cmp = ((F1)->mask ? CMP(mask & (F1)->data[ds * (F1)->n + (I)], \
-							   mask & (F2)->data[ds * (F2)->n + (J)]) : 0); } } !cmp; })
+#define VALCOMPARE(A, B, F, G) CMP((F)->v[(A) - (F)->data], (G)->v[(B) - (G)->data])
+
+#define SORTCMP(VAL, A, B, F, G) ((VAL) ? VALCOMPARE(A, B, F, G) : COMPARE(A, B, F, G))
 
 #define _SWAP(A, B, N, C) do { if ((A) != (B)) { \
 	register chunk *__a = (A), *__b = (B), *__bp = base_ptr; \
@@ -58,28 +57,6 @@
 		*(__b + i * (N)) = __tmp; \
 	} \
 } } while (0)
-
-__attribute__((always_inline)) inline
-void intersectconsecutive(const func *f) {
-
-	register chunk *base_ptr = f->data;
-	register dim i = 0;
-
-	while (i < f->n - 1) {
-
-		register dim j = i + 1, k = 1;
-
-		while (j < f->n) {
-			if (INTERSECT(f, i, f, j)) {
-				_SWAP(f->data + j, f->data + i + k, f->n, f->c);
-				k++;
-			}
-			j++;
-		}
-
-		i += k;
-	}
-}
 
 // Discontinue quicksort algorithm when partition gets below this size.
 // This particular magic number was chosen to work best on a Sun 4/260.
@@ -125,16 +102,18 @@ typedef struct {
       smaller partition.  This *guarantees* no more than log (f->n)
       stack size is needed (actually O(1) in this case)!  */
 
+template <bool val = false>
 __attribute__((always_inline)) inline
-void sort(const func *f) {
+void sort(const func *f, dim idx = 0) {
 
-	register chunk *base_ptr = f->data;
+	if (f->n - idx < 2) return;
+	register chunk *base_ptr = f->data + idx;
 	const size_t max_thresh = MAX_THRESH;
 
-	if (f->n > MAX_THRESH) {
+	if (f->n - idx > MAX_THRESH) {
 
 		chunk *lo = base_ptr;
-		chunk *hi = lo + f->n - 1;
+		chunk *hi = lo + f->n - idx - 1;
 		stack_node stack[STACK_SIZE];
 		stack_node *top = stack;
 		PUSH(NULL, NULL);
@@ -152,10 +131,10 @@ void sort(const func *f) {
 
 			chunk *mid = lo + ((hi - lo) >> 1);
 
-			if (COMPARE(mid, lo, f, f) < 0) _SWAP(mid, lo, f->n, f->c);
-			if (COMPARE(hi, mid, f, f) < 0) _SWAP(mid, hi, f->n, f->c);
+			if (SORTCMP(val, mid, lo, f, f) < 0) _SWAP(mid, lo, f->n, f->c);
+			if (SORTCMP(val, hi, mid, f, f) < 0) _SWAP(mid, hi, f->n, f->c);
 			else goto jump_over;
-			if (COMPARE(mid, lo, f, f) < 0) _SWAP(mid, lo, f->n, f->c);
+			if (SORTCMP(val, mid, lo, f, f) < 0) _SWAP(mid, lo, f->n, f->c);
 			jump_over:;
 
 			left_ptr = lo + 1;
@@ -165,8 +144,8 @@ void sort(const func *f) {
 			Gotta like those tight inner loops! They are the main reason
 			that this algorithm runs much faster than others. */
 			do {
-				while (COMPARE(left_ptr, mid, f, f) < 0) left_ptr++;
-				while (COMPARE(mid, right_ptr, f, f) < 0) right_ptr--;
+				while (SORTCMP(val, left_ptr, mid, f, f) < 0) left_ptr++;
+				while (SORTCMP(val, mid, right_ptr, f, f) < 0) right_ptr--;
 
 				if (left_ptr < right_ptr) {
 					_SWAP(left_ptr, right_ptr, f->n, f->c);
@@ -213,7 +192,7 @@ void sort(const func *f) {
 	the array (*not* one beyond it!). */
 
 	{
-		chunk *const end_ptr = base_ptr + f->n - 1;
+		chunk *const end_ptr = base_ptr + f->n - idx - 1;
 		chunk *tmp_ptr = base_ptr;
 		chunk *thresh = MIN(end_ptr, base_ptr + max_thresh);
 		chunk *run_ptr;
@@ -223,7 +202,7 @@ void sort(const func *f) {
 		and the operation speeds up insertion sort's inner loop. */
 
 		for (run_ptr = tmp_ptr + 1; run_ptr <= thresh; run_ptr++)
-			if (COMPARE(run_ptr, tmp_ptr, f, f) < 0) tmp_ptr = run_ptr;
+			if (SORTCMP(val, run_ptr, tmp_ptr, f, f) < 0) tmp_ptr = run_ptr;
 
 		if (tmp_ptr != base_ptr) _SWAP(tmp_ptr, base_ptr, f->n, f->c);
 
@@ -233,7 +212,7 @@ void sort(const func *f) {
 		while ((run_ptr += 1) <= end_ptr) {
 
 			tmp_ptr = run_ptr - 1;
-			while (COMPARE(run_ptr, tmp_ptr, f, f) < 0) tmp_ptr--;
+			while (SORTCMP(val, run_ptr, tmp_ptr, f, f) < 0) tmp_ptr--;
 			tmp_ptr++; // current element's final position
 
 			if (tmp_ptr != run_ptr) {

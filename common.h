@@ -20,6 +20,8 @@
 #define GETMACRO(_1, _2, _3, NAME, ...) NAME
 #define GET(...) GETMACRO(__VA_ARGS__, GETC, GETR)(__VA_ARGS__)
 
+#define BREAKPOINT(MSG) do { puts(MSG); fflush(stdout); while (getchar() != '\n'); } while (0)
+
 #define COPYFIELDS(FO, FI) do { (FO)->d = (FI)->d; (FO)->s = (FI)->s; (FO)->mask = (FI)->mask; } while (0)
 #define ALLOCFUNC(F) do { (F)->c = CEIL((F)->m, BITSPERCHUNK); \
 			  (F)->vars = (id *)malloc(sizeof(id) * (F)->m); \
@@ -32,6 +34,7 @@
 			 for (_i = 0; _i < (F)->n; _i++) if ((F)->care[_i]) free((F)->care[_i]); free((F)->care); } while (0)
 
 #define MASKOR(A, B, R, C) do { register dim _i; for (_i = 0; _i < (C); _i++) (R)[_i] = (A)[_i] | (B)[_i]; } while (0)
+#define MASKAND(A, B, R, C) do { register dim _i; for (_i = 0; _i < (C); _i++) (R)[_i] = (A)[_i] & (B)[_i]; } while (0)
 #define MASKXOR(A, B, R, C) do { register dim _i; for (_i = 0; _i < (C); _i++) (R)[_i] = (A)[_i] ^ (B)[_i]; } while (0)
 #define MASKANDNOT(A, B, R, C) do { register dim _i; for (_i = 0; _i < (C); _i++) (R)[_i] = (A)[_i] & ~(B)[_i]; } while (0)
 #define MASKNOTAND(A, B, R, C) do { register dim _i; for (_i = 0; _i < (C); _i++) (R)[_i] = ~(A)[_i] & (B)[_i]; } while (0)
@@ -40,6 +43,7 @@
 			 while (!(*_buf) && _i < (C)) { _ffs += BITSPERCHUNK; _buf++; _i++; } \
 			 if (_i == (C)) _ffs = 0; else _ffs += __builtin_ffsll(*_buf) - 1; _ffs; })
 #define MASKCLEARANDFFS(A, B, C) ({ CLEAR(A, B); MASKFFS(A, C); })
+#define MASKFFSANDCLEAR(A, C) ({ register dim _idx = MASKFFS(A, C); CLEAR(A, _idx); _idx; })
 
 template <typename type>
 __attribute__((always_inline)) inline

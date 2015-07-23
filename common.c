@@ -77,7 +77,7 @@ void parallelmove(chunk *data, dim c, dim exp) {
 
 void transpose(chunk *data, dim r, dim c) {
 
-	if (c > 1) {
+	if (c > 1 && r > 1) {
 		register dim j, i = 0, nt = r, n = __builtin_popcountll(r);
 		dim count[n];
 		while (nt) nt ^= 1ULL << (count[n - 1 - i++] = __builtin_ctzll(nt));

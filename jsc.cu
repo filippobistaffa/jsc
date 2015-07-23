@@ -1,4 +1,3 @@
-
 #ifdef JSCMAIN
 #include "jsc.h"
 #endif
@@ -303,6 +302,110 @@ void printsourcebuf(const type *buf, unsigned n, const char *name, unsigned id, 
 	puts("};");
 }
 
+__attribute__((always_inline)) inline
+void removedefaults(func *f) {
+
+	register dim idx = 0;
+	while (!f->v[idx]) idx++;
+	//#ifdef PRINTINFO
+	printf(MAGENTA("Reduced to %.2f%%\n"), 100.0 * (f->n - idx) / f->n);
+	//#endif
+	transpose(f->data, f->c, f->n);
+	memmove(f->data, f->data + idx * f->c, sizeof(chunk) * f->c * (f->n - idx));
+	memmove(f->care, f->care + idx, sizeof(chunk *) * (f->n - idx));
+	memmove(f->v, f->v + idx, sizeof(value) * (f->n - idx));
+	f->n -= idx;
+	f->data = (chunk *)realloc(f->data, sizeof(chunk) * f->n * f->c);
+	transpose(f->data, f->n, f->c);
+	f->care = (chunk **)realloc(f->care, sizeof(chunk *) * f->n);
+	f->v = (value *)realloc(f->v, sizeof(value) * f->n);
+}
+
+#define DIFFERSONEBIT(F, I, J, TMP) ({ register int ret = -1; if ((!(F)->care[I] && !(F)->care[J]) || \
+				       ((F)->care[I] && (F)->care[J] && !memcmp((F)->care[I], (F)->care[J], sizeof(chunk) * (F)->c))) { \
+				       MASKXOR((F)->data + (I) * (F)->c, (F)->data + (J) * (F)->c, TMP, (F)->c); \
+				       if (MASKPOPCNT(TMP, (F)->c) == 1) ret = MASKFFS(TMP, (F)->c); } ret; })
+
+__attribute__((always_inline)) inline
+void collapsethreshold(func *f) {
+
+	#define THRESHOLD 50
+
+	register dim idx = 0;
+	while (f->v[idx] < THRESHOLD) idx++;
+
+	sort(f, idx);
+	//print(f, "f sorted");
+	f->hn = uniquecombinations(f, idx);
+	f->h = (dim *)malloc(sizeof(dim) * f->hn);
+	histogram(f, idx);
+	//printbuf(f->h, f->hn, "f->h");
+	dim pfx[f->hn];
+	exclprefixsum(f->h, pfx, f->hn);
+
+	register const dim cn = CEILBPC(f->n);
+	register chunk *keep = (chunk *)malloc(sizeof(chunk) * cn);
+	ONES(keep, f->n, cn);
+	register chunk *tmp = (chunk *)malloc(sizeof(chunk) * f->c);
+	transpose(f->data, f->c, f->n);
+
+	register dim h;
+
+	#pragma omp parallel for private(h)
+	for (h = 0; h < f->hn; h++) {
+
+		register bool collapsed = true;
+
+		while (collapsed) {
+
+			register const dim n = (h == f->hn - 1) ? f->n : pfx[h + 1];
+			register dim i, j;
+			register int b;
+			collapsed = false;
+
+			for (i = idx + pfx[h]; i < n; i++) if (GET(keep, i))
+				for (j = i + 1; j < n; j++) if (GET(keep, j))
+					if ((b = DIFFERSONEBIT(f, i, j, tmp)) != -1) {
+						//printf("%u matches %u on bit %d\n", i, j, b);
+						collapsed = true;
+						CLEAR(keep, j);
+						CLEAR(f->data + i * f->c, b);
+						if (!f->care[i]) { f->care[i] = (chunk *)malloc(sizeof(chunk) * f->c); ONES(f->care[i], f->m, f->c); }
+						CLEAR(f->care[i], b);
+						if (f->care[j]) { free(f->care[j]); f->care[j] = NULL; }
+						break;
+					}
+			//puts("");
+		}
+	}
+
+	register const dim pk = MASKPOPCNT(keep, cn);
+	printf(MAGENTA("Reduced to %.2f%%\n"), 100.0 * pk / f->n);
+	register chunk *data = (chunk *)malloc(sizeof(chunk) * pk * f->c);
+	register chunk **care = (chunk **)malloc(sizeof(chunk *) * pk);
+	register value *v = (value *)malloc(sizeof(value) * pk);
+	register dim i, j;
+
+	for (i = 0, j = MASKFFS(keep, cn); i < pk; i++, j = MASKCLEARANDFFS(keep, j, cn)) {
+		memcpy(data + i * f->c, f->data + j * f->c, sizeof(chunk) * f->c);
+		care[i] = f->care[j];
+		v[i] = f->v[j];
+	}
+
+	free(f->data);
+	f->data = data;
+	free(f->care);
+	f->care = care;
+	free(f->v);
+	f->v = v;
+	free(f->h);
+	f->n = pk;
+	transpose(data, pk, f->c);
+	free(keep);
+	free(tmp);
+	//print(f);
+}
+
 #endif
 
 __attribute__((always_inline)) inline
@@ -336,6 +439,8 @@ func jointsum(func *f1, func *f2) {
 		printf("care2[%u] = (chunk *)malloc(sizeof(chunk) * f2->c);\n", i);
 		printf("memcpy(care2[%u], f2care%u, sizeof(chunk) * f2->c);\n", i, i);
 	}
+
+	fflush(stdout);
 	#endif
 
 	register func f3;
@@ -348,15 +453,15 @@ func jointsum(func *f1, func *f2) {
 	printf(MAGENTA("%u shared variables\n"), f1->s);
 	#endif
 	f3.s = f1->s;
-	f3.d = f1->d;
+	f3.mask = f1->mask;
+	f3.d = f1->d + f2->d;
 	f3.m = f1->m + f2->m - f1->s;
 
-	register const dim cs12 = CEILBPC(MAX(f1->m, f2->m));
-	chunk cc[cs12];
-	ONES(cc, f1->s, cs12);
-
-	print(f1, "f1", c1);
-	print(f2, "f2", c2);
+	//register const dim cs12 = CEILBPC(MAX(f1->m, f2->m));
+	//chunk cc[cs12];
+	//ONES(cc, f1->s, cs12);
+	//print(f1, "f1", c1);
+	//print(f2, "f2", c2);
 
 	TIMER_START(YELLOW("Shift & Reorder..."));
 	shared2least(f1, c1);
@@ -390,22 +495,28 @@ func jointsum(func *f1, func *f2) {
 	exclprefixsum(f2->h, pfxh2, f2->hn);
 	TIMER_STOP;
 
-	print(f1, "f1", cc);
-	print(f2, "f2", cc);
+	//print(f1, "f1", cc);
+	//print(f2, "f2", cc);
+	TIMER_START(YELLOW("Instancing don't cares..."));
 	register func sf1i, sf2i, *f1i = &sf1i, *f2i = &sf2i;
 	register func sf1d, sf2d, *f1d = &sf1d, *f2d = &sf2d;
         instancedontcare(f1, f2, f3.m, 0, pfxh1, pfxh2, f1i, f1d);
         instancedontcare(f2, f1, f3.m, f1->m - f1->s, pfxh2, pfxh1, f2i, f2d);
+	TIMER_STOP;
+
+	TIMER_START(YELLOW("Sorting..."));
 	sort(f1i);
 	sort(f2i);
+	TIMER_STOP;
 
-	print(f1, "f1", cc);
+	/*print(f1, "f1", cc);
 	print(f1i, "f1i", cc);
 	print(f1d, "f1d", cc);
 	print(f2, "f2", cc);
 	print(f2i, "f2i", cc);
-	print(f2d, "f2d", cc);
+	print(f2d, "f2d", cc);*/
 
+	#ifdef __CUDACC__
 	*f1 = sf1i;
 	*f2 = sf2i;
 
@@ -426,14 +537,32 @@ func jointsum(func *f1, func *f2) {
 	inthistogram(f2);
 	TIMER_STOP;
 
-	//printbuf(f1->h, f1->hn, "f1->h");
-	//printbuf(f2->h, f2->hn, "f2->h");
+	//printf("%u %u\n", f1->hn, f2->hn);
 	assert(f1->hn == f2->hn);
 
 	pfxh1 = (dim *)realloc(pfxh1, sizeof(dim) * f1->hn);
 	pfxh2 = (dim *)realloc(pfxh2, sizeof(dim) * f2->hn);
 
-	#ifdef __CUDACC__
+	exclprefixsum(f1->h, pfxh1, f1->hn);
+	exclprefixsum(f2->h, pfxh2, f2->hn);
+
+	TIMER_START(YELLOW("Instancing defaults..."));
+	instancedefaults(f1, pfxh1);
+	instancedefaults(f2, pfxh2);
+	TIMER_STOP;
+
+	//printf("f1 = %u\n", crc32func(f1));
+	//printf("f2 = %u\n", crc32func(f2));
+
+	sort(f1);
+	sort(f2);
+
+	//print(f1, "f1", cc);
+	//print(f2, "f2", cc);
+	//BREAKPOINT("with defaults");
+	//printbuf(f1->h, f1->hn, "f1->h");
+	//printbuf(f2->h, f2->hn, "f2->h");
+
 	exclprefixsum(f1->h, pfxh1, f1->hn);
 	exclprefixsum(f2->h, pfxh2, f2->hn);
 
@@ -572,8 +701,9 @@ func jointsum(func *f1, func *f2) {
 		// could be parallelised
 		for (i = 0; i < hn; i++)
 			for (j = 0; j < hp[i]; j++) {
-				register const dim pfxj1 = pfxh1[i] + j % f1->h[i];
+				register const dim pfxj1 = pfxh1[i] + j / f2->h[i];
 				register const dim pfxj2 = pfxh2[i] + j % f2->h[i];
+				//printf("%u %u\n", pfxj1, pfxj2);
 				f3.care[pfxhp[i] + j] = (chunk *)calloc(f3.c, sizeof(chunk));
 				if (f1->care[pfxj1]) memcpy(f3.care[pfxhp[i] + j], f1->care[pfxj1], sizeof(chunk) * f1->c);
 				else ONES(f3.care[pfxhp[i] + j], f1->m, f1->c);
@@ -582,13 +712,13 @@ func jointsum(func *f1, func *f2) {
 				if (MASKPOPCNT(f3.care[pfxhp[i] + j], f3.c) == f3.m) { free(f3.care[pfxhp[i] + j]); f3.care[pfxhp[i] + j] = NULL; }
 			}
 
-		//#ifdef PRINTCHECKSUM
+		#ifdef PRINTCHECKSUM
 		printf("f1i = %u\n", crc32func(f1i));
 		printf("f1d = %u\n", crc32func(f1d));
 		printf("f2i = %u\n", crc32func(f2i));
 		printf("f2d = %u\n", crc32func(f2d));
 		printf("f3 = %u\n", crc32func(&f3));
-		//#endif
+		#endif
 
 		cudaFree(pfxh1d);
 		cudaFree(pfxh2d);
@@ -608,7 +738,17 @@ func jointsum(func *f1, func *f2) {
 
 	copyfunc(&f3, f1d, f3.n - f1d->n - f2d->n);
 	copyfunc(&f3, f2d, f3.n - f2d->n);
+	sort<true>(&f3);
 	//print(&f3, "f3", cc);
+	TIMER_START(YELLOW("Removing defaults..."));
+	removedefaults(&f3);
+	TIMER_STOP;
+	//print(&f3, "f3", cc);
+	//TIMER_START(YELLOW("Collapsing..."));
+	//collapsethreshold(&f3);
+	//TIMER_STOP;
+	//print(&f3, "f3", cc);
+	//BREAKPOINT("Good?");
 	#endif
 	free(f1->h);
 	free(f2->h);
@@ -635,12 +775,12 @@ int main(int argc, char *argv[]) {
 	memcpy(f1->data, data1, sizeof(chunk) * f1->c * f1->n);
 	memcpy(f1->vars, vars1, sizeof(id) * f1->m);
 	memcpy(f1->v, v1, sizeof(value) * f1->n);
-	memcpy(f1->care, care1, sizeof(chunk *) * f1->n);
+	//memcpy(f1->care, care1, sizeof(chunk *) * f1->n);
 
 	memcpy(f2->data, data2, sizeof(chunk) * f2->c * f2->n);
 	memcpy(f2->vars, vars2, sizeof(id) * f2->m);
 	memcpy(f2->v, v2, sizeof(value) * f2->n);
-	memcpy(f2->care, care2, sizeof(chunk *) * f2->n);
+	//memcpy(f2->care, care2, sizeof(chunk *) * f2->n);
 
 	jointsum(f1, f2);
 

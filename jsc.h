@@ -36,17 +36,20 @@
 
 #include "colours.h"
 #include "types.h"
+#include "macros.h"
+#include "compare.h"
 
-#include "columnmajor.h"
+#include "rowmajor.h"
 #include "marsenne.h"
 #include "common.h"
 #include "crc32.h"
 
-#include "qsort.cpp"
 #include "instance.cpp"
+//#include "create.cpp"
 
 #ifdef __CUDACC__ // CUDA
 #include "jsc.cuh"
+#include "qsort.cpp"
 #include "jsc.cu"
 #endif
 

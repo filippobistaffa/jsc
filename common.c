@@ -103,14 +103,9 @@ void histogramproduct(const dim *h1, const dim *h2, dim *ho, dim hn) {
 
 unsigned crc32func(const func *f) {
 
-	unsigned crc[3] = { 0 };
-	crc[0] = crc32(f->data, sizeof(chunk) * f->n * f->c);
+	unsigned crc[2] = { 0 };
+	crc[0] = crc32(f->data, sizeof(chunk) * 2 * f->n * f->c);
 	crc[1] = crc32(f->v, sizeof(value) * f->n);
-	register unsigned *care = (unsigned *)calloc(f->n, sizeof(unsigned));
-	register dim i;
-	for (i = 0; i < f->n; i++) if (f->care[i]) care[i] = crc32(f->care[i], sizeof(chunk) * f->c);
-	crc[2] = crc32(care, sizeof(unsigned) * f->n);
-	free(care);
-	//printf("%u %u %u\n", crc[0], crc[1], crc[2]);
-	return crc32(crc, sizeof(unsigned) * 3);
+	//printf("%u %u %u\n", crc[0], crc[1]);
+	return crc32(crc, sizeof(unsigned) * 2);
 }

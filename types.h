@@ -12,10 +12,10 @@ typedef uint64_t chunk;
 typedef uint32_t dim;
 
 typedef struct {
-        chunk *data, mask, *hmask, **care;
-        dim n, m, c, s, *h, hn;
-        value *v, d;
-        id *vars;
+	chunk *data, mask, *hmask;
+	dim n, m, c, s, *h, hn;
+	value *v;
+	id *vars;
 } func;
 
 #endif /* TYPES_H_ */

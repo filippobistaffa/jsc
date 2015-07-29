@@ -415,10 +415,6 @@ func jointsum(func *f1, func *f2) {
 							 sizeof(value) * (f1->n + f2->n) + sizeof(dim) * 6 * hn);
 		#endif
 		TIMER_START(YELLOW("Allocating..."));
-		cudaMalloc(&d1d, sizeof(chunk) * 2 * f1->n * f1->c);
-		cudaMalloc(&d2d, sizeof(chunk) * 2 * f2->n * f2->c);
-		cudaMalloc(&d1t, sizeof(chunk) * 2 * f1->n * f1->c);
-		cudaMalloc(&d2t, sizeof(chunk) * 2 * f2->n * f2->c);
 		cudaMalloc(&v1d, sizeof(value) * f1->n);
 		cudaMalloc(&v2d, sizeof(value) * f2->n);
 		cudaMalloc(&h1d, sizeof(dim) * hn);
@@ -430,37 +426,38 @@ func jointsum(func *f1, func *f2) {
 		TIMER_STOP;
 
 		TIMER_START(YELLOW("Copying..."));
-		cudaMemcpy(d1d, f1->data, sizeof(chunk) * 2 * f1->n * f1->c, cudaMemcpyHostToDevice);
-		cudaMemcpy(d2d, f2->data, sizeof(chunk) * 2 * f2->n * f2->c, cudaMemcpyHostToDevice);
 		cudaMemcpy(v1d, f1->v, sizeof(value) * f1->n, cudaMemcpyHostToDevice);
 		cudaMemcpy(v2d, f2->v, sizeof(value) * f2->n, cudaMemcpyHostToDevice);
 		cudaMemcpy(h1d, f1->h, sizeof(dim) * hn, cudaMemcpyHostToDevice);
 		cudaMemcpy(h2d, f2->h, sizeof(dim) * hn, cudaMemcpyHostToDevice);
 		TIMER_STOP;
 
-		//puts("d1d");
-		//cudaprintbuf<<<1,1>>>(d1d, 2 * f1->n * f1->c);
-		//puts("d2d");
-		//cudaprintbuf<<<1,1>>>(d2d, 2 * f2->n * f2->c);
-
 		TIMER_START(GREEN("Transposing First Matrix..."));
+		cudaMalloc(&d1d, sizeof(chunk) * 2 * f1->n * f1->c);
+		cudaMemcpy(d1d, f1->data, sizeof(chunk) * 2 * f1->n * f1->c, cudaMemcpyHostToDevice);
+		cudaMalloc(&d1t, sizeof(chunk) * 2 * f1->n * f1->c);
 		dim3 grid1(CEIL(f1->n, BLOCK_DIM), CEIL(2 * f1->c, BLOCK_DIM), 1);
 		//dim3 grid1((2 * f1->c) / BLOCK_DIM, f1->n / BLOCK_DIM, 1);
 		//printf("%u %u %u %u\n", grid1.x, grid1.y, grid1.z, BLOCK_DIM);
-		dim3 threads1(BLOCK_DIM, BLOCK_DIM, 1);
-		transpose<<<grid1,threads1>>>(d1t, d1d, 2 * f1->c, f1->n);
+		dim3 threads(BLOCK_DIM, BLOCK_DIM, 1);
+		transpose<<<grid1,threads>>>(d1t, d1d, 2 * f1->c, f1->n);
 		gpuerrorcheck(cudaPeekAtLastError());
 		gpuerrorcheck(cudaDeviceSynchronize());
+		cudaFree(d1d);
 		TIMER_STOP;
 
 		TIMER_START(GREEN("Transposing Second Matrix..."));
+		cudaMalloc(&d2d, sizeof(chunk) * 2 * f2->n * f2->c);
+		cudaMemcpy(d2d, f2->data, sizeof(chunk) * 2 * f2->n * f2->c, cudaMemcpyHostToDevice);
+		cudaMalloc(&d2t, sizeof(chunk) * 2 * f2->n * f2->c);
 		dim3 grid2(CEIL(f2->n, BLOCK_DIM), CEIL(2 * f2->c, BLOCK_DIM), 1);
 		//dim3 grid2((2 * f2->c) / BLOCK_DIM, f2->n / BLOCK_DIM, 1);
 		//printf("%u %u %u %u\n", grid2.x, grid2.y, grid2.z, BLOCK_DIM);
-		dim3 threads2(BLOCK_DIM, BLOCK_DIM, 1);
-		transpose<<<grid2,threads2>>>(d2t, d2d, 2 * f2->c, f2->n);
+		//dim3 threads2(BLOCK_DIM, BLOCK_DIM, 1);
+		transpose<<<grid2,threads>>>(d2t, d2d, 2 * f2->c, f2->n);
 		gpuerrorcheck(cudaPeekAtLastError());
 		gpuerrorcheck(cudaDeviceSynchronize());
+		cudaFree(d2d);
 		TIMER_STOP;
 
 		histogramproductkernel<<<CEIL(hn, THREADSPERBLOCK), THREADSPERBLOCK>>>(h1d, h2d, hpd, hn);
@@ -507,9 +504,8 @@ func jointsum(func *f1, func *f2) {
 
 	if (f1->n && f2->n) {
 
-		cudaMalloc(&d3d, sizeof(chunk) * 2 * f3.n * f3.c);
 		cudaMalloc(&d3t, sizeof(chunk) * 2 * f3.n * f3.c);
-		cudaMemset(d3d, 0, sizeof(chunk) * 2 * f3.n * f3.c);
+		//cudaMemset(d3d, 0, sizeof(chunk) * 2 * f3.n * f3.c);
 		cudaMalloc(&v3d, sizeof(value) * f3.n);
 
 		dim hp[hn], pfxhp[hn], bn;
@@ -551,14 +547,18 @@ func jointsum(func *f1, func *f2) {
 		jointsumkernel<<<bn, THREADSPERBLOCK>>>(*f1, *f2, f3, d1t, d2t, d3t, v1d, v2d, v3d, pfxh1d, pfxh2d, pfxhpd, bd);
 		gpuerrorcheck(cudaPeekAtLastError());
 		gpuerrorcheck(cudaDeviceSynchronize());
+		cudaFree(d1t);
+		cudaFree(d2t);
 		TIMER_STOP;
 
 		TIMER_START(GREEN("Transposing Result..."));
+		cudaMalloc(&d3d, sizeof(chunk) * 2 * f3.n * f3.c);
                 dim3 grid3(CEIL(f3.n, BLOCK_DIM), CEIL(2 * f3.c, BLOCK_DIM), 1);
 		dim3 threads(BLOCK_DIM, BLOCK_DIM, 1);
                 transposeback<<<grid3,threads>>>(d3d, d3t, f3.n, 2 * f3.c);
 		gpuerrorcheck(cudaPeekAtLastError());
 		gpuerrorcheck(cudaDeviceSynchronize());
+		cudaFree(d3t);
                 TIMER_STOP;
 
 		cudaMemcpy(f3.data, d3d, sizeof(chunk) * 2 * f3.n * f3.c, cudaMemcpyDeviceToHost);
@@ -573,12 +573,7 @@ func jointsum(func *f1, func *f2) {
 		cudaFree(pfxh1d);
 		cudaFree(pfxh2d);
 		cudaFree(pfxhpd);
-		cudaFree(d1d);
-		cudaFree(d2d);
 		cudaFree(d3d);
-		cudaFree(d1t);
-		cudaFree(d2t);
-		cudaFree(d3t);
 		cudaFree(v1d);
 		cudaFree(v2d);
 		cudaFree(v3d);

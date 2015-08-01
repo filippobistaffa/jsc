@@ -508,7 +508,8 @@ func jointsum(func *f1, func *f2) {
 	memcpy(f3.vars, f1->vars, sizeof(id) * f1->m);
 	memcpy(f3.vars + f1->m, f2->vars + f2->s, sizeof(id) * (f2->m - f1->s));
 
-	dim hp[hn], pfxhp[hn];
+	dim *hp = (dim *)malloc(sizeof(dim) * hn);
+	dim *pfxhp = (dim *)malloc(sizeof(dim) * hn);
 	cudaMemcpy(hp, hpd, sizeof(dim) * hn, cudaMemcpyDeviceToHost);
 
 	// bn = number of blocks needed
@@ -686,10 +687,12 @@ func jointsum(func *f1, func *f2) {
 	free(pfxh2);
 	free(pfxho);
 	free(pfxhi);
+	free(pfxhp);
 	free(f1->h);
 	free(f2->h);
 	free(ho);
 	free(hi);
+	free(hp);
 	free(c1);
 	free(c2);
 

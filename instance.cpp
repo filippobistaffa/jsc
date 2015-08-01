@@ -116,7 +116,9 @@ void instanceshared(func *f/*, const chunk *m*/) {
 	chunk ones[cs];
 	ONES(ones, f->s, cs);
 
-	dim popc[f->n], ext[f->n], pfxext[f->n];
+	dim *popc = (dim *)malloc(sizeof(dim) * f->n);
+	dim *ext = (dim *)calloc(f->n, sizeof(dim));
+	dim *pfxext = (dim *)malloc(sizeof(dim) * f->n);
 	memset(ext, 0, sizeof(dim) * f->n);
 	register chunk *mask = (chunk *)malloc(sizeof(mask) * cs * f->n);
 

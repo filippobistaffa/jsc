@@ -294,7 +294,7 @@ void solveIP(func *f1, func *f2, dim k, size_t mb, dim tb, unsigned *cx, unsigne
 }
 
 __attribute__((always_inline)) inline
-dim linearbinpacking(func *f1, func *f2, dim *hp, uint4 *o, dim *ho, dim *hi, bool debug) {
+dim linearbinpacking(func *f1, func *f2, dim *hp, uint4 *o, dim *ho, dim *hi, bool debug = false) {
 
 	register dim b, i, t, j = 0, ko = 0, k = 0, tb = hp[0];
 
@@ -337,8 +337,8 @@ dim linearbinpacking(func *f1, func *f2, dim *hp, uint4 *o, dim *ho, dim *hi, bo
 			//printbuf(hi, idx + 1, "hi");
 
 			if (m + gb > ag | r + rb > ag / TRANSPOSEFACTOR) {
-				if (debug) printf("%zu %zu %zu %zu\n", m, gb, r, rb);
-				if (debug) puts("splitting");
+				//if (debug) printf("%zu %zu %zu %zu\n", m, gb, r, rb);
+				//if (debug) puts("splitting");
 				gb = m + 3 * sizeof(dim);
 				rb = r;
 				ko = k;
@@ -524,7 +524,7 @@ func jointsum(func *f1, func *f2) {
 	dim *hi = (dim *)malloc(sizeof(dim) * f3.n);
 
 	TIMER_START(YELLOW("Bin packing..."));
-	register dim runs = linearbinpacking(f1, f2, hp, bh, ho, hi, debug);
+	register dim runs = linearbinpacking(f1, f2, hp, bh, ho, hi/*, debug*/);
 	TIMER_STOP;
 	//bh = (uint4 *)realloc(bh, sizeof(uint4) * bn);
 
@@ -533,8 +533,8 @@ func jointsum(func *f1, func *f2) {
 
 	//if (debug) BREAKPOINT("");
 	assert(runs <= hn);
-
-	dim pfxho[runs], pfxhi[runs];
+	dim *pfxho = (dim *)malloc(sizeof(dim) * runs);
+	dim *pfxhi = (dim *)malloc(sizeof(dim) * runs);
 	exclprefixsum(ho, pfxho, runs);
 	exclprefixsum(hi, pfxhi, runs);
 
@@ -553,7 +553,8 @@ func jointsum(func *f1, func *f2) {
 		//BREAKPOINT("");
 	}*/
 
-	dim pfxh1[hn], pfxh2[hn];
+	dim *pfxh1 = (dim *)malloc(sizeof(dim) * hn);
+	dim *pfxh2 = (dim *)malloc(sizeof(dim) * hn);
 	exclprefixsum(f1->h, pfxh1, hn);
 	exclprefixsum(f2->h, pfxh2, hn);
 	exclprefixsum(hp, pfxhp, hn);
@@ -681,10 +682,17 @@ func jointsum(func *f1, func *f2) {
 	#endif
 	free(f1->hmask);
 	free(f2->hmask);
+	free(pfxh1);
+	free(pfxh2);
+	free(pfxho);
+	free(pfxhi);
 	free(f1->h);
 	free(f2->h);
+	free(ho);
+	free(hi);
 	free(c1);
 	free(c2);
+
 
 	#ifdef __CUDACC__
 	return f3;

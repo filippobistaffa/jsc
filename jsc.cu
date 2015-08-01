@@ -8,6 +8,8 @@ static struct timeval t1, t2;
 
 #ifdef __CUDACC__
 
+//#define DEBUGKERNEL
+
 #include "transpose_kernel.cu"
 
 __constant__ uint4 bdc[CONSTANTSIZE / sizeof(uint4)];
@@ -28,7 +30,8 @@ __global__ void cudaprintbuf(const type *buf, unsigned n) {
 	}
 }
 
-__global__ void jointsumkernel(func f1, func f2, func f3, chunk *d1, chunk *d2, chunk *d3, value *v1, value *v2, value *v3, dim *pfxh1, dim *pfxh2, dim *pfxhp, uint4 *bd) {
+__global__ void jointsumkernel(func f1, func f2, func f3, chunk *d1, chunk *d2, chunk *d3, value *v1, value *v2, value *v3,
+			       dim f1nr, dim f2nr, dim f3nr, dim *pfxh1, dim *pfxh2, dim *pfxhp, uint4 *bd) {
 
 	dim bx = blockIdx.x, tx = threadIdx.x;
 	uint2 k;
@@ -107,21 +110,21 @@ __global__ void jointsumkernel(func f1, func f2, func f3, chunk *d1, chunk *d2, 
 
 	assert(THREADSPERBLOCK >= j.z);
 
-	//if (tx < j.x * f1.c) shd[tx] = d1[(tx / j.x) * f1.n + l.x + k.x + tx % j.x];
-	//if (tx < j.y * f2.c) shd[j.x * f1.c + tx] = d2[(tx / j.y) * f2.n + l.y + k.y + tx % j.y];
+	//if (tx < j.x * f1.c) shd[tx] = d1[(tx / j.x) * f1nr + l.x + k.x + tx % j.x];
+	//if (tx < j.y * f2.c) shd[j.x * f1.c + tx] = d2[(tx / j.y) * f2nr + l.y + k.y + tx % j.y];
 	if (tx < j.x) for (h = 0; h < 2 * f1.c; h++) {
-		shd[h * j.x + tx] = d1[h * f1.n + l.x + k.x + tx];
+		shd[h * j.x + tx] = d1[h * f1nr + l.x + k.x + tx];
 		#ifdef DEBUGKERNEL
 		printf("[" YELLOW("% 3u") "," GREEN("% 3u") "] shd[% 3u] <- d1[% 3u] = %lu\n",
-		       bx, tx, h * j.x + tx, h * f1.n + l.x + k.x + tx, shd[h * j.x + tx]);
+		       bx, tx, h * j.x + tx, h * f1nr + l.x + k.x + tx, shd[h * j.x + tx]);
 		#endif
 	}
 
 	if (tx < j.y) for (h = 0; h < 2 * f2.c; h++) {
-		shd[j.x * 2 * f1.c + h * j.y + tx] = d2[h * f2.n + l.y + k.y + tx];
+		shd[j.x * 2 * f1.c + h * j.y + tx] = d2[h * f2nr + l.y + k.y + tx];
 		#ifdef DEBUGKERNEL
 		printf("[" YELLOW("% 3u") "," GREEN("% 3u") "] shd[% 3u] <- d2[% 3u] = %lu\n",
-		       bx, tx, j.x * 2 * f1.c + h * j.y + tx, h * f2.n + l.y + k.y + tx, shd[j.x * 2 * f1.c + h * j.y + tx]);
+		       bx, tx, j.x * 2 * f1.c + h * j.y + tx, h * f2nr + l.y + k.y + tx, shd[j.x * 2 * f1.c + h * j.y + tx]);
 		#endif
 	}
 
@@ -246,19 +249,19 @@ __global__ void jointsumkernel(func f1, func f2, func f3, chunk *d1, chunk *d2, 
 		#endif
 
 		for (h = 0; h < 2 * DIVBPC(f1.m); h++) {
-			d3[l.z + o.x + h * f3.n + tx] = shd[i.x + h * j.x];
+			d3[l.z + o.x + h * f3nr + tx] = shd[i.x + h * j.x];
 			#ifdef DEBUGKERNEL
 			printf("[" YELLOW("% 3u") "," GREEN("% 3u") "] (2) d3[% 3u] <- shd[% 3u] = %lu\n",
-			       bx, tx, l.z + o.x + h * f3.n + tx, i.x + h * j.x, shd[i.x + h * j.x]);
+			       bx, tx, l.z + o.x + h * f3nr + tx, i.x + h * j.x, shd[i.x + h * j.x]);
 			#endif
 		}
 
 		for (; h < 2 * f3.c; h++) {
-			d3[l.z + o.x + h * f3.n + tx] = shd[j.x * 2 * f1.c + j.y * 2 * f2.c + (h - 2 * DIVBPC(f1.m)) * j.z + tx];
+			d3[l.z + o.x + h * f3nr + tx] = shd[j.x * 2 * f1.c + j.y * 2 * f2.c + (h - 2 * DIVBPC(f1.m)) * j.z + tx];
 			#ifdef DEBUGKERNEL
 			printf("[" YELLOW("% 3u") "," GREEN("% 3u") "] (3) h = % 3u d3[% 3u] <- shd[% 3u] = %lu\n",
-			       bx, tx, h, l.z + o.x + h * f3.n + tx, j.x * 2 * f1.c + j.y * 2 * f2.c + (h - 2 * DIVBPC(f1.m)) * j.z + tx,
-			       d3[l.z + o.x + h * f3.n + tx]);
+			       bx, tx, h, l.z + o.x + h * f3nr + tx, j.x * 2 * f1.c + j.y * 2 * f2.c + (h - 2 * DIVBPC(f1.m)) * j.z + tx,
+			       d3[l.z + o.x + h * f3nr + tx]);
 			#endif
 		}
 	}
@@ -291,26 +294,62 @@ void solveIP(func *f1, func *f2, dim k, size_t mb, dim tb, unsigned *cx, unsigne
 }
 
 __attribute__((always_inline)) inline
-dim linearbinpacking(func *f1, func *f2, dim *hp, uint4 *o) {
+dim linearbinpacking(func *f1, func *f2, dim *hp, uint4 *o, dim *ho, dim *hi, bool debug) {
 
-	register dim b, i, t, j = 0, k = 0, tb = hp[0];
-	register size_t m, mb = MEMORY(f1->h[0], f2->h[0], hp[0]) + 3 * sizeof(dim);
+	register dim b, i, t, j = 0, ko = 0, k = 0, tb = hp[0];
+
+	register size_t m, r;
+	register size_t mb = MEMORY(f1->h[0], f2->h[0], hp[0]) + 3 * sizeof(dim);
+	register size_t gb = mb;
+	register size_t rb = RESULTDATA(hp[0]);
+
 	register uint2 c = make_uint2(0, 0);
+	register dim idx = 0;
 
-	for (i = 1; i <= f1->hn; i++)
-		if ((m = MEMORY(f1->h[i], f2->h[i], hp[i])) + mb > SHAREDSIZE - SHAREDMARGIN
-		     | (t = hp[i]) + tb > THREADSPERBLOCK || i == f1->hn) {
+	register size_t free, total;
+	cudaMemGetInfo(&free, &total);
+	register const size_t ag = free - sizeof(dim) * 6 * f1->hn;
+
+	//#ifdef PRINTSIZE
+	//printf(RED("%zu bytes available in global memory\n"), free);
+	//#endif
+
+	for (i = 1; i <= f1->hn; i++) {
+
+		m = i == f1->hn ? 0 : MEMORY(f1->h[i], f2->h[i], hp[i]);
+		r = i == f1->hn ? 0 : RESULTDATA(hp[i]);
+		//if (debug) printf("m = %zu r = %zu %u %u %u\n", m, r, f1->h[i], f2->h[i], hp[i]);
+		assert(m <= ag);
+		assert(r <= ag / TRANSPOSEFACTOR);
+
+		if (m + mb > SHAREDSIZE - SHAREDMARGIN | (t = hp[i]) + tb > THREADSPERBLOCK || i == f1->hn) {
 			solveIP(f1, f2, i - 1, mb, tb, &(c.x), &(c.y));
 			b = c.x * c.y;
-			do o[j++] = c.x * c.y > 1 ? make_uint4(k, c.x, c.y, c.x * c.y - b) : make_uint4(k, 0, 0, i - k);
+			do o[j++] = c.x * c.y > 1 ? make_uint4(k - ko, c.x, c.y, c.x * c.y - b) : make_uint4(k - ko, 0, 0, i - k);
 			while (--b);
 			mb = m + 3 * sizeof(dim);
 			tb = t;
 			k = i;
-		}
-		else mb += m, tb += t;
 
-	return j;
+			ho[idx] = idx ? j - ho[idx - 1] : j;
+			hi[idx] = idx ? i - hi[idx - 1] : i;
+			//printbuf(ho, idx + 1, "ho");
+			//printbuf(hi, idx + 1, "hi");
+
+			if (m + gb > ag | r + rb > ag / TRANSPOSEFACTOR) {
+				if (debug) printf("%zu %zu %zu %zu\n", m, gb, r, rb);
+				if (debug) puts("splitting");
+				gb = m + 3 * sizeof(dim);
+				rb = r;
+				ko = k;
+				idx++;
+			} else gb += m, rb += r;
+		}
+		else mb += m, tb += t, gb += m, rb += r;
+
+	}
+
+	return idx + 1;
 }
 
 template <typename type>
@@ -328,6 +367,8 @@ void printsourcebuf(const type *buf, unsigned n, const char *name, unsigned id, 
 
 __attribute__((always_inline)) inline
 func jointsum(func *f1, func *f2) {
+
+	assert(f1->n && f2->n);
 
 	#ifdef PRINTFUNCTIONCODE
 	printf("f1->n = %u;\nf1->m = %u;\n", f1->n, f1->m);
@@ -364,18 +405,38 @@ func jointsum(func *f1, func *f2) {
 	reordershared(f2, f1->vars);
 	TIMER_STOP;
 
-	TIMER_START(YELLOW("Instancing Don't Cares..."));
-	instanceshared(f1);
-	//print(f1, "f1i", cc);
-	instanceshared(f2);
-	//print(f2, "f2i", cc);
-	TIMER_STOP;
-
+	//chunk cc[max(f1->c, f2->c)];
+	//ONES(cc, f1->s, max(f1->c, f2->c));
+	//print(f1, "f1", cc);
+	//print(f2, "f2", cc);
+	//printf("f1 = %u\n", crc32func(f1));
+	//printf("f2 = %u\n", crc32func(f2));
 	//BREAKPOINT("");
 
-	#ifdef PRINTSIZE
-	printf(RED("Table 1 has %u rows and %u variables\n"), f1->n, f1->m);
-	printf(RED("Table 2 has %u rows and %u variables\n"), f2->n, f2->m);
+	/*TIMER_START(YELLOW("Finding Intersections..."));
+	register const dim cn1 = CEILBPC(f1->n);
+	register const dim cn2 = CEILBPC(f2->n);
+	register chunk *m1 = (chunk *)calloc(cn1, sizeof(chunk));
+	register chunk *m2 = (chunk *)calloc(cn2, sizeof(chunk));
+	markintersections(f1, m1, f2, m2);
+	TIMER_STOP;*/
+
+	TIMER_START(YELLOW("Instancing Don't Cares..."));
+	instanceshared(f1/*, m1*/);
+	instanceshared(f2/*, m2*/);
+	//free(m1);
+	//free(m2);
+	TIMER_STOP;
+
+	//print(f1, "f1", cc);
+	//print(f2, "f2", cc);
+	//printf("f1 = %u\n", crc32func(f1));
+	//printf("f2 = %u\n", crc32func(f2));
+	//BREAKPOINT("");
+
+	#ifdef PRINTINFO
+	printf(MAGENTA("Table 1 has %u rows and %u variables (%zu bytes)\n"), f1->n, f1->m, (sizeof(chunk) * 2 * f1->c + sizeof(value)) * f1->n);
+	printf(MAGENTA("Table 2 has %u rows and %u variables (%zu bytes)\n"), f2->n, f2->m, (sizeof(chunk) * 2 * f2->c + sizeof(value)) * f2->n);
 	#endif
 
 	TIMER_START(GREEN("Sort..."));
@@ -400,192 +461,222 @@ func jointsum(func *f1, func *f2) {
 	copymatchingrows(f1, f2, n1, n2, hn);
 	TIMER_STOP;
 
+	#ifdef PRINTINFO
+	printf(MAGENTA("%u histogram groups\n"), hn);
+	#endif
+
+	assert(hn);
 	assert(f1->hn == f2->hn);
 	//BREAKPOINT("GOOD?");
 
 	#ifdef __CUDACC__
-	value *v1d, *v2d, *v3d;
-	chunk *d1d, *d2d, *d3d, *d1t, *d2t, *d3t;
-	dim *h1d, *h2d, *hpd, *pfxh1d, *pfxh2d, *pfxhpd;
+	dim *h1d, *h2d, *hpd, *pfxh1d, *pfxh2d, *pfxhpd, *f3n;
 
-	if (f1->n && f2->n) {
+	cudaMalloc(&h1d, sizeof(dim) * hn);
+	cudaMalloc(&h2d, sizeof(dim) * hn);
+	cudaMalloc(&hpd, sizeof(dim) * hn);
+	cudaMalloc(&pfxh1d, sizeof(dim) * hn);
+	cudaMalloc(&pfxh2d, sizeof(dim) * hn);
+	cudaMalloc(&pfxhpd, sizeof(dim) * hn);
+	cudaMemcpy(h1d, f1->h, sizeof(dim) * hn, cudaMemcpyHostToDevice);
+	cudaMemcpy(h2d, f2->h, sizeof(dim) * hn, cudaMemcpyHostToDevice);
 
-		#ifdef PRINTSIZE
-		printf(RED("Will allocate %zu bytes\n"), sizeof(chunk) * 2 * (f1->n * f1->c + f2->n * f2->c) +
-							 sizeof(value) * (f1->n + f2->n) + sizeof(dim) * 6 * hn);
-		#endif
-		TIMER_START(YELLOW("Allocating..."));
-		cudaMalloc(&v1d, sizeof(value) * f1->n);
-		cudaMalloc(&v2d, sizeof(value) * f2->n);
-		cudaMalloc(&h1d, sizeof(dim) * hn);
-		cudaMalloc(&h2d, sizeof(dim) * hn);
-		cudaMalloc(&hpd, sizeof(dim) * hn);
-		cudaMalloc(&pfxh1d, sizeof(dim) * hn);
-		cudaMalloc(&pfxh2d, sizeof(dim) * hn);
-		cudaMalloc(&pfxhpd, sizeof(dim) * hn);
-		TIMER_STOP;
+	histogramproductkernel<<<CEIL(hn, THREADSPERBLOCK), THREADSPERBLOCK>>>(h1d, h2d, hpd, hn);
+	gpuerrorcheck(cudaPeekAtLastError());
+	gpuerrorcheck(cudaDeviceSynchronize());
 
-		TIMER_START(YELLOW("Copying..."));
-		cudaMemcpy(v1d, f1->v, sizeof(value) * f1->n, cudaMemcpyHostToDevice);
-		cudaMemcpy(v2d, f2->v, sizeof(value) * f2->n, cudaMemcpyHostToDevice);
-		cudaMemcpy(h1d, f1->h, sizeof(dim) * hn, cudaMemcpyHostToDevice);
-		cudaMemcpy(h2d, f2->h, sizeof(dim) * hn, cudaMemcpyHostToDevice);
-		TIMER_STOP;
+	cudaMalloc(&f3n, sizeof(dim));
+	void *ts = NULL;
+	size_t tsn = 0;
 
-		TIMER_START(GREEN("Transposing First Matrix..."));
-		cudaMalloc(&d1d, sizeof(chunk) * 2 * f1->n * f1->c);
-		cudaMemcpy(d1d, f1->data, sizeof(chunk) * 2 * f1->n * f1->c, cudaMemcpyHostToDevice);
-		cudaMalloc(&d1t, sizeof(chunk) * 2 * f1->n * f1->c);
-		dim3 grid1(CEIL(f1->n, BLOCK_DIM), CEIL(2 * f1->c, BLOCK_DIM), 1);
-		//dim3 grid1((2 * f1->c) / BLOCK_DIM, f1->n / BLOCK_DIM, 1);
-		//printf("%u %u %u %u\n", grid1.x, grid1.y, grid1.z, BLOCK_DIM);
-		dim3 threads(BLOCK_DIM, BLOCK_DIM, 1);
-		transpose<<<grid1,threads>>>(d1t, d1d, 2 * f1->c, f1->n);
-		gpuerrorcheck(cudaPeekAtLastError());
-		gpuerrorcheck(cudaDeviceSynchronize());
-		cudaFree(d1d);
-		TIMER_STOP;
-
-		TIMER_START(GREEN("Transposing Second Matrix..."));
-		cudaMalloc(&d2d, sizeof(chunk) * 2 * f2->n * f2->c);
-		cudaMemcpy(d2d, f2->data, sizeof(chunk) * 2 * f2->n * f2->c, cudaMemcpyHostToDevice);
-		cudaMalloc(&d2t, sizeof(chunk) * 2 * f2->n * f2->c);
-		dim3 grid2(CEIL(f2->n, BLOCK_DIM), CEIL(2 * f2->c, BLOCK_DIM), 1);
-		//dim3 grid2((2 * f2->c) / BLOCK_DIM, f2->n / BLOCK_DIM, 1);
-		//printf("%u %u %u %u\n", grid2.x, grid2.y, grid2.z, BLOCK_DIM);
-		//dim3 threads2(BLOCK_DIM, BLOCK_DIM, 1);
-		transpose<<<grid2,threads>>>(d2t, d2d, 2 * f2->c, f2->n);
-		gpuerrorcheck(cudaPeekAtLastError());
-		gpuerrorcheck(cudaDeviceSynchronize());
-		cudaFree(d2d);
-		TIMER_STOP;
-
-		histogramproductkernel<<<CEIL(hn, THREADSPERBLOCK), THREADSPERBLOCK>>>(h1d, h2d, hpd, hn);
-		gpuerrorcheck(cudaPeekAtLastError());
-		gpuerrorcheck(cudaDeviceSynchronize());
-
-		// Determine temporary device storage requirements for inclusive prefix sum
-		void *ts = NULL;
-		size_t tsn = 0;
-
-		cub::DeviceScan::InclusiveSum(ts, tsn, h1d, pfxh1d, hn);
-		cudaMalloc(&ts, tsn);
-		cub::DeviceScan::InclusiveSum(ts, tsn, h1d, pfxh1d, hn);
-		cudaFree(ts);
-
-		ts = NULL;
-		tsn = 0;
-		cub::DeviceScan::InclusiveSum(ts, tsn, h2d, pfxh2d, hn);
-		cudaMalloc(&ts, tsn);
-		cub::DeviceScan::InclusiveSum(ts, tsn, h2d, pfxh2d, hn);
-		cudaFree(ts);
-
-		ts = NULL;
-		tsn = 0;
-		cub::DeviceScan::InclusiveSum(ts, tsn, hpd, pfxhpd, hn);
-		cudaMalloc(&ts, tsn);
-		cub::DeviceScan::InclusiveSum(ts, tsn, hpd, pfxhpd, hn);
-		cudaFree(ts);
-
-		cudaMemcpy(&f3.n, pfxhpd + hn - 1, sizeof(dim), cudaMemcpyDeviceToHost);
-	}
-	else f3.n = 0;
+	cub::DeviceReduce::Sum(ts, tsn, hpd, f3n, hn);
+	cudaMalloc(&ts, tsn);
+	cub::DeviceReduce::Sum(ts, tsn, hpd, f3n, hn);
+	cudaMemcpy(&f3.n, f3n, sizeof(dim), cudaMemcpyDeviceToHost);
 
 	#ifdef PRINTSIZE
-	printf(RED("Result size = %zu bytes (%u lines)\n"), sizeof(chunk) * 2 * f3.n * CEILBPC(f3.m), f3.n);
+	printf(RED("Total result size = %zu bytes (%u lines)\n"), sizeof(chunk) * 2 * f3.n * CEILBPC(f3.m), f3.n);
 	#endif
 
-	assert(sizeof(chunk) * 2 * (f1->n * f1->c + f2->n * f2->c + f3.n * CEILBPC(f3.m)) +
-	       sizeof(value) * (f1->n + f2->n + f3.n) + sizeof(dim) * 6 * hn < GLOBALSIZE);
+	//register const bool debug = false; //(f1->n == 1572872 && f2->n == 131104);
+	//printf("debug = %u %u %u\n", debug, f1->n, f2->n);
+
+	//register const bool debug = sizeof(chunk) * 2 * f3.n * CEILBPC(f3.m) > GLOBALSIZE / TRANSPOSEFACTOR;
+	//if (debug) BREAKPOINT("");
 
 	ALLOCFUNC(&f3);
 	memcpy(f3.vars, f1->vars, sizeof(id) * f1->m);
 	memcpy(f3.vars + f1->m, f2->vars + f2->s, sizeof(id) * (f2->m - f1->s));
 
-	if (f1->n && f2->n) {
+	dim hp[hn], pfxhp[hn];
+	cudaMemcpy(hp, hpd, sizeof(dim) * hn, cudaMemcpyDeviceToHost);
 
-		cudaMalloc(&d3t, sizeof(chunk) * 2 * f3.n * f3.c);
-		//cudaMemset(d3d, 0, sizeof(chunk) * 2 * f3.n * f3.c);
-		cudaMalloc(&v3d, sizeof(value) * f3.n);
+	// bn = number of blocks needed
+	// each bh[i] stores the information regarding the i-th block
+	// .x = this block works on the .x-th group
+	// .y = the .x-th group is split into .y parts
+	// .z = this block is the .z-th among the .y^2 blocks processing the .x-th group
+	// notice that if a group is split into n parts, we need n^2 blocks to process it, since both f1 and f2 input
+	// data rows are split into n parts, hence we have n^2 combinations
 
-		dim hp[hn], pfxhp[hn], bn;
-		uint4 *bh = (uint4 *)malloc(sizeof(uint4) * f3.n);
-		cudaMemcpy(hp, hpd, sizeof(dim) * hn, cudaMemcpyDeviceToHost);
+	uint4 *bh = (uint4 *)malloc(sizeof(uint4) * f3.n);
+	dim *ho = (dim *)malloc(sizeof(dim) * f3.n);
+	dim *hi = (dim *)malloc(sizeof(dim) * f3.n);
 
-		// bn = number of blocks needed
-		// each bh[i] stores the information regarding the i-th block
-		// .x = this block works on the .x-th group
-		// .y = the .x-th group is split into .y parts
-		// .z = this block is the .z-th among the .y^2 blocks processing the .x-th group
-		// notice that if a group is split into n parts, we need n^2 blocks to process it, since both f1 and f2 input
-		// data rows are split into n parts, hence we have n^2 combinations
+	TIMER_START(YELLOW("Bin packing..."));
+	register dim runs = linearbinpacking(f1, f2, hp, bh, ho, hi, debug);
+	TIMER_STOP;
+	//bh = (uint4 *)realloc(bh, sizeof(uint4) * bn);
 
-		TIMER_START(YELLOW("Bin packing..."));
-		bn = linearbinpacking(f1, f2, hp, bh);
-		TIMER_STOP;
-		bh = (uint4 *)realloc(bh, sizeof(uint4) * bn);
+	//for (dim j = 0; j < hn; j++) printf("%u * %u = %u (%zu bytes)\n", f1->h[j], f2->h[j], hp[j], MEMORY(f1->h[j], f2->h[j], hp[j]));
+	//printf("%u\n", runs);
+
+	//if (debug) BREAKPOINT("");
+	assert(runs <= hn);
+
+	dim pfxho[runs], pfxhi[runs];
+	exclprefixsum(ho, pfxho, runs);
+	exclprefixsum(hi, pfxhi, runs);
+
+	/*if (debug) {
+		printbuf(ho, runs, "ho");
+		printbuf(hi, runs, "hi");
+		printbuf(pfxho, runs, "pfxho");
+		printbuf(pfxhi, runs, "pfxhi");
+
+		for (dim r = 0; r < runs; r++) {
+			printf("Run %u\n", r);
+			for (dim j = 0; j < ho[r]; j++)
+				printf("%3u = %3u %3u %3u %3u\n", j, bh[pfxho[r] + j].x, bh[pfxho[r] + j].y, bh[pfxho[r] + j].z, bh[pfxho[r] + j].w);
+		}
+
+		//BREAKPOINT("");
+	}*/
+
+	dim pfxh1[hn], pfxh2[hn];
+	exclprefixsum(f1->h, pfxh1, hn);
+	exclprefixsum(f2->h, pfxh2, hn);
+	exclprefixsum(hp, pfxhp, hn);
+
+	for (dim r = 0; r < runs; r++) {
+
+		if (runs > 1) printf(BLUE("Step %u of %u...\n"), r + 1, runs);
+		register const dim bn = ho[r];
 
 		uint4 *bd;
 		cudaMalloc(&bd, sizeof(uint4) * bn);
-		cudaMemcpy(bd, bh, sizeof(uint4) * bn, cudaMemcpyHostToDevice);
+		cudaMemcpy(bd, bh + pfxho[r], sizeof(uint4) * bn, cudaMemcpyHostToDevice);
 
 		#ifdef PRINTSIZE
 		printf(RED("%u block(s) needed\n"), bn);
 		printf(RED("Groups splitting information = %zu bytes\n"), sizeof(uint4) * bn);
 		#endif
 
-		#ifdef DEBUGKERNEL
-		register dim j;
-		for (j = 0; j < hn; j++) printf("%u * %u = %u (%zu bytes)\n", f1->h[j], f2->h[j], hp[j], MEMORY(f1->h[j], f2->h[j], hp[j]));
-		for (j = 0; j < bn; j++) printf("%3u = %3u %3u %3u %3u\n", j, bh[j].x, bh[j].y, bh[j].z, bh[j].w);
-		#endif
+		ts = NULL;
+		tsn = 0;
+		cub::DeviceScan::InclusiveSum(ts, tsn, h1d + pfxhi[r], pfxh1d, hi[r]);
+		cudaMalloc(&ts, tsn);
+		cub::DeviceScan::InclusiveSum(ts, tsn, h1d + pfxhi[r], pfxh1d, hi[r]);
+		cudaFree(ts);
 
-		//assert(CONSTANTSIZE > sizeof(uint4) * bn);
-		//cudaMemcpyToSymbol(bdc, bh, sizeof(uint4) * bn);
+		ts = NULL;
+		tsn = 0;
+		cub::DeviceScan::InclusiveSum(ts, tsn, h2d + pfxhi[r], pfxh2d, hi[r]);
+		cudaMalloc(&ts, tsn);
+		cub::DeviceScan::InclusiveSum(ts, tsn, h2d + pfxhi[r], pfxh2d, hi[r]);
+		cudaFree(ts);
+
+		ts = NULL;
+		tsn = 0;
+		cub::DeviceScan::InclusiveSum(ts, tsn, hpd + pfxhi[r], pfxhpd, hi[r]);
+		cudaMalloc(&ts, tsn);
+		cub::DeviceScan::InclusiveSum(ts, tsn, hpd + pfxhi[r], pfxhpd, hi[r]);
+		cudaFree(ts);
+
+		value *v1d, *v2d, *v3d;
+		chunk *d1d, *d2d, *d3d, *d1t, *d2t, *d3t;
+
+		register const dim f1nr = (r == runs - 1 ? f1->n : pfxh1[pfxhi[r + 1]]) - pfxh1[pfxhi[r]];
+		register const dim f2nr = (r == runs - 1 ? f2->n : pfxh2[pfxhi[r + 1]]) - pfxh2[pfxhi[r]];
+		register const dim f3nr = (r == runs - 1 ? f3.n : pfxhp[pfxhi[r + 1]]) - pfxhp[pfxhi[r]];
+
+		#ifdef PRINTSIZE
+		if (runs > 1) printf(RED("Run result size = %zu bytes (%u lines)\n"), sizeof(chunk) * 2 * f3nr * CEILBPC(f3.m), f3nr);
+		#endif
+		//if (debug) printf("%u %u %u\n", f1nr, f2nr, f3nr);
+
+		cudaMalloc(&v1d, sizeof(value) * f1nr);
+		cudaMalloc(&v2d, sizeof(value) * f2nr);
+		cudaMemcpy(v1d, f1->v + pfxh1[pfxhi[r]], sizeof(value) * f1nr, cudaMemcpyHostToDevice);
+		cudaMemcpy(v2d, f2->v + pfxh2[pfxhi[r]], sizeof(value) * f2nr, cudaMemcpyHostToDevice);
+
+		TIMER_START(GREEN("Transposing First Matrix..."));
+		cudaMalloc(&d1d, sizeof(chunk) * 2 * f1nr * f1->c);
+		cudaMemcpy(d1d, DATA(f1, pfxh1[pfxhi[r]]), sizeof(chunk) * 2 * f1nr * f1->c, cudaMemcpyHostToDevice);
+		cudaMalloc(&d1t, sizeof(chunk) * 2 * f1nr * f1->c);
+		dim3 grid1(CEIL(f1nr, BLOCK_DIM), CEIL(2 * f1->c, BLOCK_DIM), 1);
+		dim3 threads(BLOCK_DIM, BLOCK_DIM, 1);
+		transpose<<<grid1,threads>>>(d1t, d1d, 2 * f1->c, f1nr);
+		gpuerrorcheck(cudaPeekAtLastError());
+		gpuerrorcheck(cudaDeviceSynchronize());
+		cudaFree(d1d);
+		TIMER_STOP;
+
+		TIMER_START(GREEN("Transposing Second Matrix..."));
+		cudaMalloc(&d2d, sizeof(chunk) * 2 * f2nr * f2->c);
+		cudaMemcpy(d2d, DATA(f2, pfxh2[pfxhi[r]]), sizeof(chunk) * 2 * f2nr * f2->c, cudaMemcpyHostToDevice);
+		cudaMalloc(&d2t, sizeof(chunk) * 2 * f2nr * f2->c);
+		dim3 grid2(CEIL(f2nr, BLOCK_DIM), CEIL(2 * f2->c, BLOCK_DIM), 2);
+		transpose<<<grid2,threads>>>(d2t, d2d, 2 * f2->c, f2nr);
+		gpuerrorcheck(cudaPeekAtLastError());
+		gpuerrorcheck(cudaDeviceSynchronize());
+		cudaFree(d2d);
+		TIMER_STOP;
+
+		cudaMalloc(&d3t, sizeof(chunk) * 2 * f3nr * f3.c);
+		cudaMalloc(&v3d, sizeof(value) * f3nr);
 
 		TIMER_START(GREEN("Joint sum..."));
-		jointsumkernel<<<bn, THREADSPERBLOCK>>>(*f1, *f2, f3, d1t, d2t, d3t, v1d, v2d, v3d, pfxh1d, pfxh2d, pfxhpd, bd);
+		jointsumkernel<<<bn, THREADSPERBLOCK>>>(*f1, *f2, f3, d1t, d2t, d3t, v1d, v2d, v3d, f1nr, f2nr, f3nr, pfxh1d, pfxh2d, pfxhpd, bd);
 		gpuerrorcheck(cudaPeekAtLastError());
 		gpuerrorcheck(cudaDeviceSynchronize());
 		cudaFree(d1t);
 		cudaFree(d2t);
+		cudaFree(v1d);
+		cudaFree(v2d);
 		TIMER_STOP;
 
+		cudaMemcpy(f3.v + pfxhp[pfxhi[r]], v3d, sizeof(value) * f3nr, cudaMemcpyDeviceToHost);
+		cudaFree(v3d);
+		cudaFree(bd);
+
 		TIMER_START(GREEN("Transposing Result..."));
-		cudaMalloc(&d3d, sizeof(chunk) * 2 * f3.n * f3.c);
-                dim3 grid3(CEIL(f3.n, BLOCK_DIM), CEIL(2 * f3.c, BLOCK_DIM), 1);
-		dim3 threads(BLOCK_DIM, BLOCK_DIM, 1);
-                transposeback<<<grid3,threads>>>(d3d, d3t, f3.n, 2 * f3.c);
+		gpuerrorcheck(cudaMalloc(&d3d, sizeof(chunk) * 2 * f3nr * f3.c));
+		dim3 grid3(CEIL(f3nr, BLOCK_DIM), CEIL(2 * f3.c, BLOCK_DIM), 1);
+		transposeback<<<grid3,threads>>>(d3d, d3t, f3nr, 2 * f3.c);
 		gpuerrorcheck(cudaPeekAtLastError());
 		gpuerrorcheck(cudaDeviceSynchronize());
 		cudaFree(d3t);
                 TIMER_STOP;
 
-		cudaMemcpy(f3.data, d3d, sizeof(chunk) * 2 * f3.n * f3.c, cudaMemcpyDeviceToHost);
-		cudaMemcpy(f3.v, v3d, sizeof(value) * f3.n, cudaMemcpyDeviceToHost);
-
-		#ifdef PRINTCHECKSUM
-		printf("f1i = %u\n", crc32func(f1i));
-		printf("f2i = %u\n", crc32func(f2i));
-		printf("f3 = %u\n", crc32func(&f3));
-		#endif
-
-		cudaFree(pfxh1d);
-		cudaFree(pfxh2d);
-		cudaFree(pfxhpd);
+		cudaMemcpy(DATA(&f3, pfxhp[pfxhi[r]]), d3d, sizeof(chunk) * 2 * f3nr * f3.c, cudaMemcpyDeviceToHost);
 		cudaFree(d3d);
-		cudaFree(v1d);
-		cudaFree(v2d);
-		cudaFree(v3d);
-		cudaFree(h1d);
-		cudaFree(h2d);
-		cudaFree(hpd);
-		cudaFree(bd);
-		free(bh);
 	}
 
+	cudaFree(pfxh1d);
+	cudaFree(pfxh2d);
+	cudaFree(pfxhpd);
+	cudaFree(h1d);
+	cudaFree(h2d);
+	cudaFree(hpd);
+	free(bh);
+
+	//printf("f3 = %u\n", crc32func(&f3));
 	//print(&f3, "f3", cc);
-	//BREAKPOINT("");
+	//register const dim crcn = 4194256 + 1;
+	//if (debug) printf("%u\n", crc32(f3.data, sizeof(chunk) * 2 * f3.c * f3.n));
+	//if (debug) printf("%u\n", crc32(f3.v, sizeof(value) * f3.n));
+	//if (debug) BREAKPOINT("");
 
 	#endif
 	free(f1->hmask);

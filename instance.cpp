@@ -86,8 +86,30 @@ void removeduplicates(func *f) {
 	f->s = olds;
 }*/
 
+template <bool self = false>
 __attribute__((always_inline)) inline
-void instanceshared(func *f) {
+void markintersections(const func *f1, chunk *m1, const func *f2 = NULL, chunk *m2 = NULL) {
+
+	register const dim cs = CEILBPC(f1->s);
+	chunk tmp1[cs], tmp2[cs];
+	if (self) f2 = f1;
+
+	for (dim i = 0; i < f1->n; i++)
+		for (dim j = self ? i + 1 : 0; j < f2->n; j++) {
+			//if (GET(m1, i) || (!self && GET(m2, j))) continue;
+			if (INTERSECT(f1, i, f2, j, tmp1, tmp2)) {
+				SET(m1, i);
+				//printf("Marking %u in f1\n", i);
+				if (!self) {
+					//printf("Marking %u in f2\n", j);
+					SET(m2, j);
+				}
+			}
+		}
+}
+
+__attribute__((always_inline)) inline
+void instanceshared(func *f/*, const chunk *m*/) {
 
 	register dim text = 0;
 	register const dim cs = CEILBPC(f->s);
@@ -98,7 +120,7 @@ void instanceshared(func *f) {
 	memset(ext, 0, sizeof(dim) * f->n);
 	register chunk *mask = (chunk *)malloc(sizeof(mask) * cs * f->n);
 
-	for (dim i = 0; i < f->n; i++) {
+	for (dim i = 0; i < f->n; i++) /*if (GET(m, i))*/ {
 		MASKANDNOT(ones, CARE(f, i), mask + i * cs, cs);
 		//printmask(mask + i * cs, f->s);
 		popc[i] = MASKPOPCNT(mask + i * cs, cs);

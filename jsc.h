@@ -49,7 +49,7 @@
 
 #ifdef __CUDACC__ // CUDA
 #include "jsc.cuh"
-#include "qsort.cpp"
+#include "sort.cpp"
 #include "jsc.cu"
 #endif
 

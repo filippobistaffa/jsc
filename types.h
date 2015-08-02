@@ -5,7 +5,8 @@
 
 typedef uint16_t id;
 #define MAXID USHRT_MAX
-typedef uint32_t value;
+typedef uint16_t value;
+#define MAXVALUE USHRT_MAX
 
 typedef uint64_t chunk;
 #define BITSPERCHUNK 64

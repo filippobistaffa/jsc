@@ -1,6 +1,6 @@
 #include "jsc.h"
 
-__attribute__((always_inline)) inline
+/*__attribute__((always_inline)) inline
 void shuffle(void *array, size_t n, size_t size) {
 
 	uint8_t tmp[size];
@@ -33,7 +33,7 @@ void randomvalues(func *f) {
 
 	register dim i;
 	for (i = 0; i < f->n; i++) f->v[i] = (value)rand() * MAXVALUE / RAND_MAX;
-}
+}*/
 
 void sharedmasks(func *f1, chunk* s1, func *f2, chunk* s2) {
 

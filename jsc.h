@@ -32,7 +32,6 @@
 #endif
 #define CPUTHREADS 8
 #define MAXVAR 29000
-#define MAXVALUE 1000
 
 #include "colours.h"
 #include "types.h"

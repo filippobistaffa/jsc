@@ -31,7 +31,7 @@ void cubsort(chunk *data, value *v, dim n) {
 	void *ts = NULL;
 	size_t tsn = 0;
 	CubDebugExit(cub::DeviceRadixSort::SortPairs(ts, tsn, d1d, d2d, v1d, v2d, n, 0, S));
-	cudaMalloc(&ts, MAX(tsn, 1024));
+	cudaMalloc(&ts, MAX(tsn, 16384));
 	CubDebugExit(cub::DeviceRadixSort::SortPairs(ts, tsn, d1d, d2d, v1d, v2d, n, 0, S));
 	cudaFree(ts);
 	cudaFree(d1d);

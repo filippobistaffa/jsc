@@ -41,7 +41,6 @@ __global__ void jointsumkernel(func f1, func f2, func f3, chunk *d1, chunk *d2, 
 	dim h, m = i.y ? 2 : i.z + 1; // numbers of pfx rows to be read
 	__shared__ dim shpfx[SHAREDSIZE / sizeof(dim)];
 	chunk *shd = ((chunk *)shpfx) + CEIL(3 * m * sizeof(dim), sizeof(chunk));
-
 	assert(THREADSPERBLOCK >= m);
 
 	if (tx < m && (tx || i.x)) {
@@ -258,7 +257,7 @@ void solveIP(func *f1, func *f2, dim k, size_t mb, dim tb, unsigned *cx, unsigne
 			register dim r2 = CEIL(h2, j);
 			register dim rp = r1 * r2;
 			// I need enough threads and shared memory to process the rows of input and output data
-			if (rp > THREADSPERBLOCK) continue;
+			if (rp >= THREADSPERBLOCK) continue;
 			if (MEMORY(r1, r2, rp) > SHAREDSIZE - SHAREDMARGIN) continue;
 			if (rp > rpmax) rpmax = rp, *cx = i, *cy = j;
 		}
@@ -295,7 +294,7 @@ dim linearbinpacking(func *f1, func *f2, dim *hp, uint4 *o, dim *ho, dim *hi) {
 		assert(m <= ag);
 		assert(r <= ag / TRANSPOSEFACTOR);
 
-		if (m + mb > SHAREDSIZE - SHAREDMARGIN | (t = hp[i]) + tb > THREADSPERBLOCK || i == f1->hn) {
+		if (m + mb > SHAREDSIZE - SHAREDMARGIN | (t = hp[i]) + tb >= THREADSPERBLOCK || i == f1->hn) {
 			solveIP(f1, f2, i - 1, mb, tb, &(c.x), &(c.y));
 			b = c.x * c.y;
 			do o[j++] = c.x * c.y > 1 ? make_uint4(k - ko, c.x, c.y, c.x * c.y - b) : make_uint4(k - ko, 0, 0, i - k);

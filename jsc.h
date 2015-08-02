@@ -43,8 +43,6 @@
 #include "marsenne.h"
 #include "common.h"
 #include "crc32.h"
-
-#include "instance.cpp"
 #include "sort.cpp"
 
 #ifdef __CUDACC__ // CUDA

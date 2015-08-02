@@ -10,6 +10,7 @@ typedef uint16_t value;
 
 typedef uint64_t chunk;
 #define BITSPERCHUNK 64
+#define ONE 1ULL
 typedef uint32_t dim;
 
 typedef struct {

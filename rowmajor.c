@@ -6,7 +6,7 @@
 
 	for (i = 0; i < f->n; i++) {
 		for (j = 0; j < DIVBPC(f->m); j++) f->data[j * f->n + i] = genrand64_int64();
-		if (MODBPC(f->m)) f->data[DIVBPC(f->m) * f->n + i] = genrand64_int64() & ((1ULL << MODBPC(f->m)) - 1);
+		if (MODBPC(f->m)) f->data[DIVBPC(f->m) * f->n + i] = genrand64_int64() & ((ONE << MODBPC(f->m)) - 1);
 	}
 }*/
 
@@ -76,8 +76,8 @@ void shared2least(const func *f, chunk* m) {
 		f->vars[y] = t;
 		#pragma omp parallel for private(i)
 		for (i = 0; i < f->n; i++) SWAP(DATA(f, i), x, y);
-		o[DIVBPC(x)] ^= 1ULL << MODBPC(x);
-		a[DIVBPC(y)] ^= 1ULL << MODBPC(y);
+		o[DIVBPC(x)] ^= ONE << MODBPC(x);
+		a[DIVBPC(y)] ^= ONE << MODBPC(y);
 	} while (--n);
 }
 

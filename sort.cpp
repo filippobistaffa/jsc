@@ -12,7 +12,7 @@ struct compare { __host__ __device__ bool operator()(const T &a, const T &b) con
 	register int cmp = 0;
 
 	/*if (DIVBPC(S)) for (dim i = 0; i < DIVBPC(S); i++) cmp += (CEILBPC(S) - i) * CMP(ac[i], bc[i]);
-	if (MODBPC(S))*/ cmp += CMP(ac[DIVBPC(S)] & ((1ULL << S) - 1), bc[DIVBPC(S)] & ((1ULL << S) - 1));
+	if (MODBPC(S))*/ cmp += CMP(ac[DIVBPC(S)] & ((ONE << S) - 1), bc[DIVBPC(S)] & ((ONE << S) - 1));
 
 	return cmp < 0;
 } };

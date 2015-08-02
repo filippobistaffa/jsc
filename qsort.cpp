@@ -99,10 +99,10 @@ void qsort(T *data, value *v, dim n) {
 
 			T *mid = lo + ((hi - lo) >> 1);
 
-			if (COMPARE(CHUNK(mid), CHUNK(lo), S, (1ULL << S) - 1) < 0) QSWAP(mid, lo);
-			if (COMPARE(CHUNK(hi), CHUNK(mid), S, (1ULL << S) - 1) < 0) QSWAP(mid, hi);
+			if (COMPARE(CHUNK(mid), CHUNK(lo), S, (ONE << S) - 1) < 0) QSWAP(mid, lo);
+			if (COMPARE(CHUNK(hi), CHUNK(mid), S, (ONE << S) - 1) < 0) QSWAP(mid, hi);
 			else goto jump_over;
-			if (COMPARE(CHUNK(mid), CHUNK(lo), S, (1ULL << S) - 1) < 0) QSWAP(mid, lo);
+			if (COMPARE(CHUNK(mid), CHUNK(lo), S, (ONE << S) - 1) < 0) QSWAP(mid, lo);
 			jump_over:;
 
 			left_ptr = lo + 1;
@@ -112,8 +112,8 @@ void qsort(T *data, value *v, dim n) {
 			Gotta like those tight inner loops! They are the main reason
 			that this algorithm runs much faster than others. */
 			do {
-				while (COMPARE(CHUNK(left_ptr), CHUNK(mid), S, (1ULL << S) - 1) < 0) left_ptr++;
-				while (COMPARE(CHUNK(mid), CHUNK(right_ptr), S, (1ULL << S) - 1) < 0) right_ptr--;
+				while (COMPARE(CHUNK(left_ptr), CHUNK(mid), S, (ONE << S) - 1) < 0) left_ptr++;
+				while (COMPARE(CHUNK(mid), CHUNK(right_ptr), S, (ONE << S) - 1) < 0) right_ptr--;
 
 				if (left_ptr < right_ptr) {
 					QSWAP(left_ptr, right_ptr);
@@ -170,7 +170,7 @@ void qsort(T *data, value *v, dim n) {
 		and the operation speeds up insertion sort's inner loop. */
 
 		for (run_ptr = tmp_ptr + 1; run_ptr <= thresh; run_ptr++)
-			if (COMPARE(CHUNK(run_ptr), CHUNK(tmp_ptr), S, (1ULL << S) - 1) < 0) tmp_ptr = run_ptr;
+			if (COMPARE(CHUNK(run_ptr), CHUNK(tmp_ptr), S, (ONE << S) - 1) < 0) tmp_ptr = run_ptr;
 
 		if (tmp_ptr != base_ptr) QSWAP(tmp_ptr, base_ptr);
 
@@ -180,7 +180,7 @@ void qsort(T *data, value *v, dim n) {
 		while ((run_ptr += 1) <= end_ptr) {
 
 			tmp_ptr = run_ptr - 1;
-			while (COMPARE(CHUNK(run_ptr), CHUNK(tmp_ptr), S, (1ULL << S) - 1) < 0) tmp_ptr--;
+			while (COMPARE(CHUNK(run_ptr), CHUNK(tmp_ptr), S, (ONE << S) - 1) < 0) tmp_ptr--;
 			tmp_ptr++; // current element's final position
 
 			if (tmp_ptr != run_ptr) {

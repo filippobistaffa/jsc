@@ -360,7 +360,7 @@ func jointsum(func *f1, func *f2) {
 	register chunk *c2 = (chunk *)calloc(f2->c, sizeof(chunk));
 	sharedmasks(f1, c1, f2, c2);
 
-	f1->mask = f2->mask = f3.mask = (1ULL << (f1->s % BITSPERCHUNK)) - 1;
+	f1->mask = f2->mask = f3.mask = (ONE << (f1->s % BITSPERCHUNK)) - 1;
 	#ifdef PRINTINFO
 	printf(MAGENTA("%u shared variables\n"), f1->s);
 	#endif

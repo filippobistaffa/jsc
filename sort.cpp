@@ -1,5 +1,4 @@
 #include "chunk.h"
-#ifdef __CUDACC__
 #include <thrust/device_vector.h>
 #include <thrust/copy.h>
 #include <thrust/sort.h>
@@ -16,6 +15,32 @@ struct compare { __host__ __device__ bool operator()(const T &a, const T &b) con
 
 	return cmp < 0;
 } };
+
+template<dim S>
+__attribute__((always_inline)) inline
+void cubsort(chunk *data, value *v, dim n) {
+
+	register chunk *d1d, *d2d;
+	register value *v1d, *v2d;
+	cudaMalloc(&d1d, sizeof(chunk) * n);
+	cudaMalloc(&v1d, sizeof(value) * n);
+	cudaMemcpy(d1d, data, sizeof(chunk) * n, cudaMemcpyHostToDevice);
+	cudaMemcpy(v1d, v, sizeof(value) * n, cudaMemcpyHostToDevice);
+	cudaMalloc(&d2d, sizeof(chunk) * n);
+	cudaMalloc(&v2d, sizeof(value) * n);
+	void *ts = NULL;
+	size_t tsn = 0;
+	CubDebugExit(cub::DeviceRadixSort::SortPairs(ts, tsn, d1d, d2d, v1d, v2d, n, 0, S));
+	cudaMalloc(&ts, MAX(tsn, 1024));
+	CubDebugExit(cub::DeviceRadixSort::SortPairs(ts, tsn, d1d, d2d, v1d, v2d, n, 0, S));
+	cudaFree(ts);
+	cudaFree(d1d);
+	cudaFree(v1d);
+	cudaMemcpy(data, d2d, sizeof(chunk) * n, cudaMemcpyDeviceToHost);
+	cudaMemcpy(v, v2d, sizeof(value) * n, cudaMemcpyDeviceToHost);
+	cudaFree(d2d);
+	cudaFree(v2d);
+}
 
 template<typename T, dim S>
 __attribute__((always_inline)) inline
@@ -88,8 +113,6 @@ inline void mergesort(T *casted, value *v, dim n) {
 	} else thrustsort<T,S>(casted, v, n);
 }
 
-#endif
-
 #include "qsort.cpp"
 
 template<typename T, dim S>
@@ -98,8 +121,8 @@ void templatesort(chunk *data, value *v, dim n) {
 
 	register T *const casted = (T *)data;
 	//mergesort<T,S>(casted, v, n);
-	thrustsort<T,S>(casted, v, n);
-	//qsort<T,S>(casted, v, n);
+	//thrustsort<T,S>(casted, v, n);
+	qsort<T,S>(casted, v, n);
 }
 
 __attribute__((always_inline)) inline

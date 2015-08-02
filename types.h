@@ -8,9 +8,11 @@ typedef uint16_t id;
 typedef uint16_t value;
 #define MAXVALUE USHRT_MAX
 
-typedef uint64_t chunk;
-#define BITSPERCHUNK 64
-#define ONE 1ULL
+typedef uint32_t chunk;
+#define BITSPERCHUNK 32
+#define ZERO 0U
+#define ONE 1U
+#define BITFORMAT "%" WIDTH "u"
 typedef uint32_t dim;
 
 typedef struct {

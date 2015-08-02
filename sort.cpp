@@ -108,6 +108,6 @@ void sort(const func *f) {
 
 	if (f->n < 2) return;
 	assert(f->c == 1);
-	assert(f->s <= 50);
+	assert(f->s <= 31);
 	#include "switch.i"
 }

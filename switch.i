@@ -32,25 +32,6 @@ switch (f->c) {
 			case 29: { templatesort<chunk1,29>(f->data, f->v, f->n); break; }
 			case 30: { templatesort<chunk1,30>(f->data, f->v, f->n); break; }
 			case 31: { templatesort<chunk1,31>(f->data, f->v, f->n); break; }
-			case 32: { templatesort<chunk1,32>(f->data, f->v, f->n); break; }
-			case 33: { templatesort<chunk1,33>(f->data, f->v, f->n); break; }
-			case 34: { templatesort<chunk1,34>(f->data, f->v, f->n); break; }
-			case 35: { templatesort<chunk1,35>(f->data, f->v, f->n); break; }
-			case 36: { templatesort<chunk1,36>(f->data, f->v, f->n); break; }
-			case 37: { templatesort<chunk1,37>(f->data, f->v, f->n); break; }
-			case 38: { templatesort<chunk1,38>(f->data, f->v, f->n); break; }
-			case 39: { templatesort<chunk1,39>(f->data, f->v, f->n); break; }
-			case 40: { templatesort<chunk1,40>(f->data, f->v, f->n); break; }
-			case 41: { templatesort<chunk1,41>(f->data, f->v, f->n); break; }
-			case 42: { templatesort<chunk1,42>(f->data, f->v, f->n); break; }
-			case 43: { templatesort<chunk1,43>(f->data, f->v, f->n); break; }
-			case 44: { templatesort<chunk1,44>(f->data, f->v, f->n); break; }
-			case 45: { templatesort<chunk1,45>(f->data, f->v, f->n); break; }
-			case 46: { templatesort<chunk1,46>(f->data, f->v, f->n); break; }
-			case 47: { templatesort<chunk1,47>(f->data, f->v, f->n); break; }
-			case 48: { templatesort<chunk1,48>(f->data, f->v, f->n); break; }
-			case 49: { templatesort<chunk1,49>(f->data, f->v, f->n); break; }
-			case 50: { templatesort<chunk1,50>(f->data, f->v, f->n); break; }
 			default:;
 		}
 		break;

@@ -12,7 +12,6 @@
 
 #define WIDTH "2"
 #define FORMAT "%" WIDTH "u"
-#define BITFORMAT "%" WIDTH "zu"
 #include <iostream>
 
 void printrow(const func *f, dim i) {
@@ -52,7 +51,7 @@ void shared2least(const func *f, chunk* m) {
 	chunk s[f->c], a[f->c], o[f->c];
 	memset(s, 0, sizeof(chunk) * f->c);
 
-	for (i = 0; i < DIVBPC(f->s); i++) s[i] = ~(0ULL);
+	for (i = 0; i < DIVBPC(f->s); i++) s[i] = ~ZERO;
 	if (MODBPC(f->s)) s[DIVBPC(f->s)] = f->mask;
 
 	for (i = 0; i < f->c; i++) {

@@ -18,17 +18,13 @@
 #define GETMACRO(_1, _2, _3, NAME, ...) NAME
 #define GET(...) GETMACRO(__VA_ARGS__, GETC, GETR)(__VA_ARGS__)
 
-#define DATA(F, I) ((F)->data + 2 * (I) * (F)->c)
-#define CARE(F, I) ((F)->data + (2 * (I) + 1) * (F)->c)
+#define DATA(F, I) ((F)->data + (I) * (F)->c)
 
 #define COPYFIELDS(FO, FI) do { (FO)->s = (FI)->s; (FO)->mask = (FI)->mask; } while (0)
 #define ALLOCFUNC(F) do { (F)->c = CEILBPC((F)->m); \
 			  (F)->vars = (id *)malloc(sizeof(id) * (F)->m); \
 			  (F)->v = (value *)calloc((F)->n, sizeof(value)); \
-			  (F)->data = (chunk *)calloc(1, sizeof(chunk) * 2 * (F)->n * (F)->c); } while (0)
-
-#define COPYFUNC(FO, FI, IDX) do { memcpy((FO)->v + (IDX), (FI)->v, sizeof(value) * (FI)->n); \
-                                   memcpy((FO)->data + (IDX) * 2 * (FI)->c, (FI)->data, sizeof(chunk) * 2 * (FI)->c * (FI)->n); } while (0)
+			  (F)->data = (chunk *)calloc((F)->n * (F)->c, sizeof(chunk)); } while (0)
 
 #define RANDOMFUNC(F) do { randomdata(F); randomvars(F); randomvalues(F); } while (0)
 #define FREEFUNC(F) do { free((F)->vars); free((F)->data); free((F)->v); } while (0)

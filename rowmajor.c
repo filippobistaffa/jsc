@@ -1,6 +1,6 @@
 #include "jsc.h"
 
-void randomdata(func *f) { // assumes BITSPERCHUNK == 64
+/*void randomdata(func *f) { // assumes BITSPERCHUNK == 64
 
 	register dim i, j;
 
@@ -8,7 +8,7 @@ void randomdata(func *f) { // assumes BITSPERCHUNK == 64
 		for (j = 0; j < DIVBPC(f->m); j++) f->data[j * f->n + i] = genrand64_int64();
 		if (MODBPC(f->m)) f->data[DIVBPC(f->m) * f->n + i] = genrand64_int64() & ((1ULL << MODBPC(f->m)) - 1);
 	}
-}
+}*/
 
 #define WIDTH "2"
 #define FORMAT "%" WIDTH "u"
@@ -20,11 +20,9 @@ void printrow(const func *f, dim i) {
 	register dim j;
 
 	for (j = 0; j < f->m; j++)
-		if (GET(CARE(f, i), j)) printf(j & 1 ? BITFORMAT : WHITE(BITFORMAT), GET(DATA(f, i), j));
-		else printf(j & 1 ? "%" WIDTH "s" : WHITE("%" WIDTH "s"), "*");
+		printf(j & 1 ? BITFORMAT : WHITE(BITFORMAT), GET(DATA(f, i), j));
 
 	std::cout << " = " << f->v[i] << std::endl;
-	//printf(" = %u\n", f->v[i]);
 }
 
 void print(const func *f, const char *title, const chunk *s) {
@@ -77,7 +75,7 @@ void shared2least(const func *f, chunk* m) {
 		f->vars[x] = f->vars[y];
 		f->vars[y] = t;
 		#pragma omp parallel for private(i)
-		for (i = 0; i < f->n; i++) { SWAP(DATA(f, i), x, y); SWAP(CARE(f, i), x, y); }
+		for (i = 0; i < f->n; i++) SWAP(DATA(f, i), x, y);
 		o[DIVBPC(x)] ^= 1ULL << MODBPC(x);
 		a[DIVBPC(y)] ^= 1ULL << MODBPC(y);
 	} while (--n);
@@ -94,23 +92,12 @@ void reordershared(const func *f, id *vars) {
 
 	#pragma omp parallel for private(i)
 	for (i = 0; i < f->n; i++) {
-
-		chunk s[2 * cs];
+		chunk s[cs];
 		register dim j;
-		memset(s, 0, sizeof(chunk) * 2 * cs);
-
-		for (j = 0; j < f->s; j++) {
-			if GET(DATA(f, i), j) SET(s, v[f->vars[j]]);
-			if GET(CARE(f, i), j) SET(s + cs, v[f->vars[j]]);
-		}
-
-		for (; j < f->c * BITSPERCHUNK; j++) {
-			if GET(DATA(f, i), j) SET(s, j);
-			if GET(CARE(f, i), j) SET(s + cs, j);
-		}
-
+		memset(s, 0, sizeof(chunk) * cs);
+		for (j = 0; j < f->s; j++) if GET(DATA(f, i), j) SET(s, v[f->vars[j]]);
+		for (; j < f->c * BITSPERCHUNK; j++) if GET(DATA(f, i), j) SET(s, j);
 		memcpy(DATA(f, i), s, sizeof(chunk) * cs);
-		memcpy(CARE(f, i), s + cs, sizeof(chunk) * cs);
 	}
 
 	memcpy(f->vars, vars, sizeof(id) * f->s);
@@ -121,9 +108,6 @@ dim uniquecombinations(const func *f, dim idx) {
 
 	if (!f->n) return 0;
 
-	//register const dim cs = CEILBPC(f->s);
-	/*chunk ones[cs], tmp1[cs], tmp2[cs];
-	ONES(ones, f->s, cs);*/
 	register dim u = 1;
 
 	for (dim i = 1 + idx; i < f->n; i++)
@@ -136,9 +120,6 @@ void histogram(const func *f, dim idx) {
 
 	if (f->n - idx && f->h) {
 
-		//register const dim cs = CEILBPC(f->s);
-		//chunk ones[cs], tmp1[cs], tmp2[cs];
-		//ONES(ones, f->s, cs);
 		f->h[0] = 1;
 
 		for (dim i = 1 + idx, k = 0; i < f->n; i++) {
@@ -153,9 +134,6 @@ void markmatchingrows(const func *f1, const func *f2, dim *n1, dim *n2, dim *hn)
 	register dim i1, i2, j1, j2;
 	i1 = i2 = j1 = j2 = *n1 = *n2 = *hn = 0;
 	register char cmp;
-	//register const dim cs = CEILBPC(f1->s);
-	//chunk ones[cs], tmp1[cs], tmp2[cs];
-	//ONES(ones, f1->s, cs);
 
 	while (i1 != f1->n && i2 != f2->n)
 		if ((cmp = COMPARE(DATA(f1, i1), DATA(f2, i2), f1->s, f1->mask)))
@@ -180,8 +158,8 @@ void copymatchingrows(func *f1, func *f2, dim n1, dim n2, dim hn) {
         i1 = i2 = i3 = i4 = j1 = j2 = j3 = j4 = 0;
 	register char cmp;
 
-        chunk *d1 = (chunk *)malloc(sizeof(chunk) * n1 * 2 * f1->c);
-        chunk *d2 = (chunk *)malloc(sizeof(chunk) * n2 * 2 * f2->c);
+        chunk *d1 = (chunk *)malloc(sizeof(chunk) * n1 * f1->c);
+        chunk *d2 = (chunk *)malloc(sizeof(chunk) * n2 * f2->c);
 	value *v1 = (value *)malloc(sizeof(value) * n1);
 	value *v2 = (value *)malloc(sizeof(value) * n2);
         dim *h1 = (dim *)malloc(sizeof(dim) * hn);
@@ -192,8 +170,8 @@ void copymatchingrows(func *f1, func *f2, dim n1, dim n2, dim hn) {
 
         while (i1 != f1->n && i2 != f2->n)
                 if ((cmp = GET(f1->hmask, j1)) & GET(f2->hmask, j2)) {
-                	memcpy(d1 + i3 * 2 * f1->c, DATA(f1, i1), sizeof(chunk) * f1->h[j1] * 2 * f1->c);
-                	memcpy(d2 + i4 * 2 * f2->c, DATA(f2, i2), sizeof(chunk) * f2->h[j2] * 2 * f2->c);
+                	memcpy(d1 + i3 * f1->c, DATA(f1, i1), sizeof(chunk) * f1->h[j1] * f1->c);
+                	memcpy(d2 + i4 * f2->c, DATA(f2, i2), sizeof(chunk) * f2->h[j2] * f2->c);
 			memcpy(v1 + i3, f1->v + i1, sizeof(value) * f1->h[j1]);
 			memcpy(v2 + i4, f2->v + i2, sizeof(value) * f2->h[j2]);
                 	h1[j3++] = f1->h[j1];

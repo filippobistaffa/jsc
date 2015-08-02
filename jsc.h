@@ -45,11 +45,10 @@
 #include "crc32.h"
 
 #include "instance.cpp"
-//#include "create.cpp"
+#include "sort.cpp"
 
 #ifdef __CUDACC__ // CUDA
 #include "jsc.cuh"
-#include "sort.cpp"
 #include "jsc.cu"
 #endif
 

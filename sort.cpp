@@ -1,4 +1,5 @@
 #include "chunk.h"
+#ifdef __CUDACC__
 #include <thrust/device_vector.h>
 #include <thrust/copy.h>
 #include <thrust/sort.h>
@@ -26,6 +27,7 @@ void cudasort(T *casted, value *v, dim n) {
 	thrust::copy(thdata.begin(), thdata.end(), casted);
 	thrust::copy(thv.begin(), thv.end(), v);
 }
+
 
 template<typename T, dim S>
 __attribute__((always_inline)) inline
@@ -86,6 +88,8 @@ inline void mergesort(T *casted, value *v, dim n) {
 
 	} else cudasort<T,S>(casted, v, n);
 }
+
+#endif
 
 #include "qsort.cpp"
 

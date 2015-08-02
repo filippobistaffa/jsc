@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 typedef uint16_t id;
-#define MAXID UINT_MAX
+#define MAXID USHRT_MAX
 typedef uint32_t value;
 
 typedef uint64_t chunk;

@@ -19,7 +19,7 @@ struct compare { __host__ __device__ bool operator()(const T &a, const T &b) con
 
 template<typename T, dim S>
 __attribute__((always_inline)) inline
-void cudasort(T *casted, value *v, dim n) {
+void thrustsort(T *casted, value *v, dim n) {
 
 	thrust::device_vector<T> thdata(casted, casted + n);
 	thrust::device_vector<value> thv(v, v + n);
@@ -27,7 +27,6 @@ void cudasort(T *casted, value *v, dim n) {
 	thrust::copy(thdata.begin(), thdata.end(), casted);
 	thrust::copy(thv.begin(), thv.end(), v);
 }
-
 
 template<typename T, dim S>
 __attribute__((always_inline)) inline
@@ -86,7 +85,7 @@ inline void mergesort(T *casted, value *v, dim n) {
 		printf(MAGENTA("Merging...\n"));
 		merge<T,S>(casted, v, mid, n);
 
-	} else cudasort<T,S>(casted, v, n);
+	} else thrustsort<T,S>(casted, v, n);
 }
 
 #endif
@@ -99,8 +98,8 @@ void templatesort(chunk *data, value *v, dim n) {
 
 	register T *const casted = (T *)data;
 	//mergesort<T,S>(casted, v, n);
-	//cudasort<T,S>(casted, v, n);
-	qsort<T,S>(casted, v, n);
+	thrustsort<T,S>(casted, v, n);
+	//qsort<T,S>(casted, v, n);
 }
 
 __attribute__((always_inline)) inline

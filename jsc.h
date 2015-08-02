@@ -42,9 +42,9 @@
 #include "marsenne.h"
 #include "common.h"
 #include "crc32.h"
-#include "sort.cpp"
 
 #ifdef __CUDACC__ // CUDA
+#include "sort.cpp"
 #include "jsc.cuh"
 #include "jsc.cu"
 #endif

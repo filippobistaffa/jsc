@@ -12,6 +12,24 @@ void exclprefixsum(type *hi, type *ho, unsigned hn) {
 	}
 }
 
+__attribute__((always_inline)) inline
+void printmask(const chunk *m, dim n) {
+
+	register dim i;
+	for (i = 0; i < n; i++) printf(GET(m, i) ? "1 " : "0 ");
+	printf("\n");
+}
+
+#include <iostream>
+template <typename type>
+__attribute__((always_inline)) inline
+void printbuf(const type *buf, unsigned n, const char *name) {
+
+	printf("%s = [ ", name);
+	while (n--) std::cout << *(buf++) << " ";
+	printf("]\n");
+}
+
 #ifdef __cplusplus
 extern "C"
 #endif

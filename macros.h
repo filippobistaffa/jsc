@@ -12,6 +12,7 @@
 #define SET(V, I) ((V)[DIVBPC(I)] |= 1ULL << MODBPC(I)) // Row-major SET
 #define CLEAR(V, I) ((V)[DIVBPC(I)] &= ~(1ULL << MODBPC(I))) // Row-major CLEAR
 
+#define SETBIT(V, I) (V) |= 1ULL << (I)
 #define GETBIT(V, I) (((V) >> (I)) & 1)
 #define GETC(V, I, N) ((V)[DIVBPC(I) * (N)] >> MODBPC(I) & 1)
 #define GETR(V, I) ((V)[DIVBPC(I)] >> MODBPC(I) & 1)

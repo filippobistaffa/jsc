@@ -6,6 +6,9 @@
 static struct timeval t1, t2;
 #endif
 
+static struct timeval t1a, t2a;
+static double at = 0;
+
 #ifdef __CUDACC__
 
 //#define DEBUGKERNEL
@@ -371,11 +374,13 @@ func jointsum(func *f1, func *f2) {
 	//print(f1, "f1", c1);
 	//print(f2, "f2", c2);
 
+	ADDTIME_START;
 	TIMER_START(YELLOW("Shift & Reorder..."));
 	shared2least(f1, c1);
 	shared2least(f2, c2);
 	reordershared(f2, f1->vars);
 	TIMER_STOP;
+	ADDTIME_STOP;
 
 	//chunk cc[max(f1->c, f2->c)];
 	//ONES(cc, f1->s, max(f1->c, f2->c));
@@ -409,6 +414,7 @@ func jointsum(func *f1, func *f2) {
 	sort(f2);
 	TIMER_STOP;
 
+	ADDTIME_START;
 	TIMER_START(YELLOW("Histogram..."));
 	f1->hn = uniquecombinations(f1);
 	f2->hn = uniquecombinations(f2);
@@ -417,6 +423,7 @@ func jointsum(func *f1, func *f2) {
 	histogram(f1);
 	histogram(f2);
 	TIMER_STOP;
+	ADDTIME_STOP;
 
 	TIMER_START(YELLOW("Matching Rows..."));
 	f1->hmask = (chunk *)calloc(CEILBPC(f1->hn), sizeof(chunk));

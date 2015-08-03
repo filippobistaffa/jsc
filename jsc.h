@@ -27,6 +27,9 @@
 #define TIMER_STOP
 #endif
 
+#define ADDTIME_START gettimeofday(&t1a, NULL)
+#define ADDTIME_STOP do { gettimeofday(&t2a, NULL); at += (double)(t2a.tv_usec - t1a.tv_usec) / 1e6 + t2a.tv_sec - t1a.tv_sec; } while (0)
+
 #ifndef SEED
 #define SEED 0
 #endif

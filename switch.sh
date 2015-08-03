@@ -12,7 +12,7 @@ for c in `seq 1 $1`; do
 	for s in `seq 1 $(( 32 * $1 - 1 ))`; do
 		echo -en "\t\t\tcase $s: { "
 		if [ $c = 1 ]
-			then echo "cubsort<$s>(f->data, f->v, f->n); break; }"
+			then echo "NATIVESORT(f->data, f->v, f->n, $s); break; }"
 			else echo "templatesort<chunk$c,$s>(f->data, f->v, f->n); break; }"
 		fi
 	done

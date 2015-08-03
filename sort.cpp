@@ -3,6 +3,10 @@
 #include <thrust/copy.h>
 #include <thrust/sort.h>
 
+//#define NATIVESORT(DATA, VALUE, N, S) cubsort<S>(DATA, VALUE, N);
+//#define NATIVESORT(DATA, VALUE, N, S) thrustsort<chunk,S>(DATA, VALUE, N);
+#define NATIVESORT(DATA, VALUE, N, S) qsort<chunk,S>(DATA, VALUE, N);
+
 template<typename T, dim S>
 struct compare { __host__ __device__ bool operator()(const T &a, const T &b) const {
 
@@ -31,7 +35,7 @@ void cubsort(chunk *data, value *v, dim n) {
 	void *ts = NULL;
 	size_t tsn = 0;
 	CubDebugExit(cub::DeviceRadixSort::SortPairs(ts, tsn, d1d, d2d, v1d, v2d, n, 0, S));
-	cudaMalloc(&ts, MAX(tsn, 16384));
+	cudaMalloc(&ts, MAX(tsn, 512 * 1024));
 	CubDebugExit(cub::DeviceRadixSort::SortPairs(ts, tsn, d1d, d2d, v1d, v2d, n, 0, S));
 	cudaFree(ts);
 	cudaFree(d1d);
@@ -98,7 +102,7 @@ void merge(T *casted, value *v, dim mid, dim n) {
 template<typename T, dim S>
 inline void mergesort(T *casted, value *v, dim n) {
 
-	printf(RED("Table size = %zu bytes\n"), (sizeof(T) + sizeof(value)) * n);
+	//printf(RED("Table size = %zu bytes\n"), (sizeof(T) + sizeof(value)) * n);
 
 	if ((sizeof(T) + sizeof(value)) * n > (GLOBALSIZE - GLOBALMARGIN) / 2) {
 

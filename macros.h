@@ -1,8 +1,13 @@
 #ifndef MACROS_H_
 #define MACROS_H_
 
-#define MAX(_x, _y) ((_x) > (_y) ? (_x) : (_y))
-#define MIN(_x, _y) ((_x) < (_y) ? (_x) : (_y))
+#ifdef __CUDACC__
+#define MAX(_x, _y) (max(_x, _y))
+#define MIN(_x, _y) (min(_x, _y))
+#else
+#define MAX(_x, _y) (std::max(_x, _y))
+#define MIN(_x, _y) (std::min(_x, _y))
+#endif
 
 #define DIVBPC(x) ((x) / BITSPERCHUNK)
 #define MODBPC(x) ((x) % BITSPERCHUNK)

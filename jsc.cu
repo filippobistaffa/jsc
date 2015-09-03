@@ -437,7 +437,12 @@ func jointsum(func *f1, func *f2) {
 	printf(MAGENTA("%u histogram groups\n"), hn);
 	#endif
 
-	assert(hn);
+	if (!hn) {
+		printf("Not satisfiable\n");
+		printf("Time = %f\n", at - at / SPEEDUP);
+		exit(0);
+	}
+
 	assert(f1->hn == f2->hn);
 	//BREAKPOINT("GOOD?");
 

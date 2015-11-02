@@ -41,12 +41,12 @@
 #include "macros.h"
 #include "compare.h"
 
-#include "rowmajor.h"
 #include "marsenne.h"
 #include "common.h"
 #include "crc32.h"
 
 #ifdef __CUDACC__ // CUDA
+#include "rowmajor.cpp"
 #include "sort.cpp"
 #include "jsc.cuh"
 #include "jsc.cu"

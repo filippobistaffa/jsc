@@ -21,9 +21,9 @@
    Software - Practice and Experience; Vol. 23 (11), 1249-1265, 1993.  */
 
 #define QSWAP(A, B) do { register T td = *(A); *(A) = *(B); *(B) = td; \
-			 register value tv = *(v + ((A) - base_ptr)); \
-			 *(v + ((A) - base_ptr)) = *(v + ((B) - base_ptr)); \
-			 *(v + ((B) - base_ptr)) = tv; } while (0)
+			 register value tv = *(f->v + ((A) - base_ptr)); \
+			 *(f->v + ((A) - base_ptr)) = *(f->v + ((B) - base_ptr)); \
+			 *(f->v + ((B) - base_ptr)) = tv; } while (0)
 
 // Discontinue quicksort algorithm when partition gets below this size.
 // This particular magic number was chosen to work best on a Sun 4/260.
@@ -64,10 +64,14 @@ log(MAX_THRESH)).
       stack size is needed (actually O(1) in this case)!  */
 
 #define CHUNK(X) ((chunk *)(X))
+#define QC (sizeof(T) / sizeof(chunk))
+#define QCMP(A, B, C, S, M) ((I) ? INVCOMPARE(A, B, C, S, M) : COMPARE(A, B, C, S, M))
 
-template<typename T, dim S>
+template<typename T, dim S, bool I>
 __attribute__((always_inline)) inline
-void qsort(T *data, value *v, dim n) {
+void qsort(const func *f) {
+
+	register T *const data = (T *)(f->data);
 
 	// Stack node declarations used to store unfulfilled partition obligations.
 	typedef struct {
@@ -78,10 +82,10 @@ void qsort(T *data, value *v, dim n) {
 	register T *const base_ptr = data;
 	const size_t max_thresh = MAX_THRESH;
 
-	if (n > MAX_THRESH) {
+	if (f->n > MAX_THRESH) {
 
 		T *lo = base_ptr;
-		T *hi = lo + n - 1;
+		T *hi = lo + f->n - 1;
 		stack_node stack[STACK_SIZE];
 		stack_node *top = stack;
 		PUSH(NULL, NULL);
@@ -99,10 +103,10 @@ void qsort(T *data, value *v, dim n) {
 
 			T *mid = lo + ((hi - lo) >> 1);
 
-			if (COMPARE(CHUNK(mid), CHUNK(lo), S, (ONE << S) - 1) < 0) QSWAP(mid, lo);
-			if (COMPARE(CHUNK(hi), CHUNK(mid), S, (ONE << S) - 1) < 0) QSWAP(mid, hi);
+			if (QCMP(CHUNK(mid), CHUNK(lo), QC, S, f->mask) < 0) QSWAP(mid, lo);
+			if (QCMP(CHUNK(hi), CHUNK(mid), QC, S, f->mask) < 0) QSWAP(mid, hi);
 			else goto jump_over;
-			if (COMPARE(CHUNK(mid), CHUNK(lo), S, (ONE << S) - 1) < 0) QSWAP(mid, lo);
+			if (QCMP(CHUNK(mid), CHUNK(lo), QC, S, f->mask) < 0) QSWAP(mid, lo);
 			jump_over:;
 
 			left_ptr = lo + 1;
@@ -112,8 +116,8 @@ void qsort(T *data, value *v, dim n) {
 			Gotta like those tight inner loops! They are the main reason
 			that this algorithm runs much faster than others. */
 			do {
-				while (COMPARE(CHUNK(left_ptr), CHUNK(mid), S, (ONE << S) - 1) < 0) left_ptr++;
-				while (COMPARE(CHUNK(mid), CHUNK(right_ptr), S, (ONE << S) - 1) < 0) right_ptr--;
+				while (QCMP(CHUNK(left_ptr), CHUNK(mid), QC, S, f->mask) < 0) left_ptr++;
+				while (QCMP(CHUNK(mid), CHUNK(right_ptr), QC, S, f->mask) < 0) right_ptr--;
 
 				if (left_ptr < right_ptr) {
 					QSWAP(left_ptr, right_ptr);
@@ -160,9 +164,10 @@ void qsort(T *data, value *v, dim n) {
 	the array (*not* one beyond it!). */
 
 	{
-		T *const end_ptr = base_ptr + n - 1;
+		T *const end_ptr = base_ptr + f->n - 1;
+		T *const base_plus_th = base_ptr + max_thresh;
 		T *tmp_ptr = base_ptr;
-		T *thresh = MIN(end_ptr, base_ptr + max_thresh);
+		T *thresh = end_ptr < base_plus_th ? end_ptr : base_plus_th;
 		T *run_ptr;
 
 		/* Find smallest element in first threshold and place it at the
@@ -170,7 +175,7 @@ void qsort(T *data, value *v, dim n) {
 		and the operation speeds up insertion sort's inner loop. */
 
 		for (run_ptr = tmp_ptr + 1; run_ptr <= thresh; run_ptr++)
-			if (COMPARE(CHUNK(run_ptr), CHUNK(tmp_ptr), S, (ONE << S) - 1) < 0) tmp_ptr = run_ptr;
+			if (QCMP(CHUNK(run_ptr), CHUNK(tmp_ptr), QC, S, f->mask) < 0) tmp_ptr = run_ptr;
 
 		if (tmp_ptr != base_ptr) QSWAP(tmp_ptr, base_ptr);
 
@@ -180,16 +185,16 @@ void qsort(T *data, value *v, dim n) {
 		while ((run_ptr += 1) <= end_ptr) {
 
 			tmp_ptr = run_ptr - 1;
-			while (COMPARE(CHUNK(run_ptr), CHUNK(tmp_ptr), S, (ONE << S) - 1) < 0) tmp_ptr--;
+			while (QCMP(CHUNK(run_ptr), CHUNK(tmp_ptr), QC, S, f->mask) < 0) tmp_ptr--;
 			tmp_ptr++; // current element's final position
 
 			if (tmp_ptr != run_ptr) {
 				register T td = *(data + (run_ptr - base_ptr));
 				memmove(data + (tmp_ptr - base_ptr) + 1, data + (tmp_ptr - base_ptr), sizeof(T) * (run_ptr - tmp_ptr));
 				*(data + (tmp_ptr - base_ptr)) = td;
-				register value tv = *(v + (run_ptr - base_ptr));
-				memmove(v + (tmp_ptr - base_ptr) + 1, v + (tmp_ptr - base_ptr), sizeof(value) * (run_ptr - tmp_ptr));
-				*(v + (tmp_ptr - base_ptr)) = tv;
+				register value tv = *(f->v + (run_ptr - base_ptr));
+				memmove(f->v + (tmp_ptr - base_ptr) + 1, f->v + (tmp_ptr - base_ptr), sizeof(value) * (run_ptr - tmp_ptr));
+				*(f->v + (tmp_ptr - base_ptr)) = tv;
 			}
 		}
 	}

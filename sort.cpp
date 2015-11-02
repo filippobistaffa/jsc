@@ -1,10 +1,11 @@
 #include "chunk.h"
 #include <cub/util_allocator.cuh>
-#include <thrust/device_vector.h>
-#include <thrust/copy.h>
-#include <thrust/sort.h>
+//#include <thrust/device_vector.h>
+//#include <thrust/copy.h>
+//#include <thrust/sort.h>
 
-#define NATIVESORT(DATA, VALUE, N, S) cubsort<S>(DATA, VALUE, N);
+#define NATIVESORT(F, S, I) (cubsort<chunk,S,I>(F))
+//#define NATIVESORT(F, S, I) (qsort<chunk,S,I>(F))
 //#define NATIVESORT(DATA, VALUE, N, S) thrustsort<chunk,S>(DATA, VALUE, N);
 //#define NATIVESORT(DATA, VALUE, N, S) qsort<chunk,S>(DATA, VALUE, N);
 
@@ -24,62 +25,41 @@ struct compare { __host__ __device__ bool operator()(const T &a, const T &b) con
 using namespace cub;
 CachingDeviceAllocator g_allocator(true);
 
-template<dim S>
+template<typename T, dim S, bool I>
 __attribute__((always_inline)) inline
-void cubsort(chunk *data, value *v, dim n) {
+void cubsort(const func *f) {
 
 	DoubleBuffer<chunk> d_keys;
 	DoubleBuffer<value> d_values;
-	CubDebugExit(g_allocator.DeviceAllocate((void**)&d_keys.d_buffers[0], sizeof(chunk) * n));
-	CubDebugExit(g_allocator.DeviceAllocate((void**)&d_keys.d_buffers[1], sizeof(chunk) * n));
-	CubDebugExit(g_allocator.DeviceAllocate((void**)&d_values.d_buffers[0], sizeof(value) * n));
-	CubDebugExit(g_allocator.DeviceAllocate((void**)&d_values.d_buffers[1], sizeof(value) * n));
+	CubDebugExit(g_allocator.DeviceAllocate((void**)&d_keys.d_buffers[0], sizeof(chunk) * f->n));
+	CubDebugExit(g_allocator.DeviceAllocate((void**)&d_keys.d_buffers[1], sizeof(chunk) * f->n));
+	CubDebugExit(g_allocator.DeviceAllocate((void**)&d_values.d_buffers[0], sizeof(value) * f->n));
+	CubDebugExit(g_allocator.DeviceAllocate((void**)&d_values.d_buffers[1], sizeof(value) * f->n));
 	size_t tsn = 0;
 	void *ts = NULL;
-	CubDebugExit(DeviceRadixSort::SortPairs(ts, tsn, d_keys, d_values, n, 0, S));
+	CubDebugExit(DeviceRadixSort::SortPairs(ts, tsn, d_keys, d_values, f->n, I ? S : 0, I ? f->m : S));
 	CubDebugExit(g_allocator.DeviceAllocate(&ts, tsn));
-	CubDebugExit(cudaMemcpy(d_keys.d_buffers[d_keys.selector], data, sizeof(chunk) * n, cudaMemcpyHostToDevice));
-	CubDebugExit(cudaMemcpy(d_values.d_buffers[d_values.selector], v, sizeof(value) * n, cudaMemcpyHostToDevice));
-	CubDebugExit(DeviceRadixSort::SortPairs(ts, tsn, d_keys, d_values, n, 0, S));
-	CubDebugExit(cudaMemcpy(data, d_keys.d_buffers[d_keys.selector], sizeof(chunk) * n, cudaMemcpyDeviceToHost));
-	CubDebugExit(cudaMemcpy(v, d_values.d_buffers[d_values.selector], sizeof(value) * n, cudaMemcpyDeviceToHost));
+	CubDebugExit(cudaMemcpy(d_keys.d_buffers[d_keys.selector], f->data, sizeof(chunk) * f->n, cudaMemcpyHostToDevice));
+	CubDebugExit(cudaMemcpy(d_values.d_buffers[d_values.selector], f->v, sizeof(value) * f->n, cudaMemcpyHostToDevice));
+	CubDebugExit(DeviceRadixSort::SortPairs(ts, tsn, d_keys, d_values, f->n, I ? S : 0, I ? f->m : S));
+	CubDebugExit(cudaMemcpy(f->data, d_keys.d_buffers[d_keys.selector], sizeof(chunk) * f->n, cudaMemcpyDeviceToHost));
+	CubDebugExit(cudaMemcpy(f->v, d_values.d_buffers[d_values.selector], sizeof(value) * f->n, cudaMemcpyDeviceToHost));
 	CubDebugExit(g_allocator.DeviceFree(d_keys.d_buffers[0]));
 	CubDebugExit(g_allocator.DeviceFree(d_keys.d_buffers[1]));
 	CubDebugExit(g_allocator.DeviceFree(d_values.d_buffers[0]));
 	CubDebugExit(g_allocator.DeviceFree(d_values.d_buffers[1]));
 	CubDebugExit(g_allocator.DeviceFree(ts));
-
-	/*register chunk *d1d, *d2d;
-	register value *v1d, *v2d;
-	cudaMalloc(&d1d, sizeof(chunk) * n);
-	cudaMalloc(&v1d, sizeof(value) * n);
-	cudaMemcpy(d1d, data, sizeof(chunk) * n, cudaMemcpyHostToDevice);
-	cudaMemcpy(v1d, v, sizeof(value) * n, cudaMemcpyHostToDevice);
-	cudaMalloc(&d2d, sizeof(chunk) * n);
-	cudaMalloc(&v2d, sizeof(value) * n);
-	void *ts = NULL;
-	size_t tsn = 0;
-	CubDebugExit(cub::DeviceRadixSort::SortPairs(ts, tsn, d1d, d2d, v1d, v2d, n, 0, S));
-	cudaMalloc(&ts, MAX(tsn, 512 * 1024));
-	CubDebugExit(cub::DeviceRadixSort::SortPairs(ts, tsn, d1d, d2d, v1d, v2d, n, 0, S));
-	cudaFree(ts);
-	cudaFree(d1d);
-	cudaFree(v1d);
-	cudaMemcpy(data, d2d, sizeof(chunk) * n, cudaMemcpyDeviceToHost);
-	cudaMemcpy(v, v2d, sizeof(value) * n, cudaMemcpyDeviceToHost);
-	cudaFree(d2d);
-	cudaFree(v2d);*/
 }
 
 template<typename T, dim S>
 __attribute__((always_inline)) inline
 void thrustsort(T *casted, value *v, dim n) {
 
-	thrust::device_vector<T> thdata(casted, casted + n);
-	thrust::device_vector<value> thv(v, v + n);
-	thrust::sort_by_key(thdata.begin(), thdata.end(), thv.begin(), compare<T,S>());
-	thrust::copy(thdata.begin(), thdata.end(), casted);
-	thrust::copy(thv.begin(), thv.end(), v);
+	//thrust::device_vector<T> thdata(casted, casted + n);
+	//thrust::device_vector<value> thv(v, v + n);
+	//thrust::sort_by_key(thdata.begin(), thdata.end(), thv.begin(), compare<T,S>());
+	//thrust::copy(thdata.begin(), thdata.end(), casted);
+	//thrust::copy(thv.begin(), thv.end(), v);
 }
 
 template<typename T, dim S>
@@ -144,21 +124,20 @@ inline void mergesort(T *casted, value *v, dim n) {
 
 #include "qsort.cpp"
 
-template<typename T, dim S>
+template<typename T, dim S, bool I>
 __attribute__((always_inline)) inline
-void templatesort(chunk *data, value *v, dim n) {
+void templatesort(const func *f) {
 
-	register T *const casted = (T *)data;
 	//mergesort<T,S>(casted, v, n);
 	//thrustsort<T,S>(casted, v, n);
-	qsort<T,S>(casted, v, n);
+	qsort<T,S,I>(f);
 }
 
+template<bool I = false>
 __attribute__((always_inline)) inline
 void sort(const func *f) {
 
 	if (f->n < 2) return;
-	assert(f->c == 1);
-	assert(f->s <= 31);
+	assert(f->c <= 2);
 	#include "switch.i"
 }

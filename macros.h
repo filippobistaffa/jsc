@@ -2,16 +2,18 @@
 #define MACROS_H_
 
 #ifdef __CUDACC__
-#define MAX(_x, _y) (max(_x, _y))
-#define MIN(_x, _y) (min(_x, _y))
+#define MAX(X, Y) (max(X, Y))
+#define MIN(X, Y) (min(X, Y))
 #else
-#define MAX(_x, _y) (std::max(_x, _y))
-#define MIN(_x, _y) (std::min(_x, _y))
+//#define MAX(X, Y) (std::max(X, Y))
+#define MAX(X, Y) ((X) > (Y) ? (X) : (Y))
+//#define MIN(X, Y) (std::min(X, Y))
+#define MIN(X, Y) ((X) < (Y) ? (X) : (Y))
 #endif
 
-#define DIVBPC(x) ((x) / BITSPERCHUNK)
-#define MODBPC(x) ((x) % BITSPERCHUNK)
-#define CEILBPC(x) CEIL(x, BITSPERCHUNK)
+#define DIVBPC(X) ((X) / BITSPERCHUNK)
+#define MODBPC(X) ((X) % BITSPERCHUNK)
+#define CEILBPC(X) CEIL(X, BITSPERCHUNK)
 #define CEIL(X, Y) (1 + (((X) - 1) / (Y)))
 
 #define SET(V, I) ((V)[DIVBPC(I)] |= ONE << MODBPC(I)) // Row-major SET

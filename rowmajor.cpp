@@ -10,40 +10,40 @@
 	}
 }*/
 
-#define WIDTH "2"
+#define WIDTH "3"
 #define FORMAT "%" WIDTH "u"
 #include <iostream>
 
+__attribute__((always_inline)) inline
 void printrow(const func *f, dim i) {
 
-	register dim j;
-
-	for (j = 0; j < f->m; j++)
+	for (dim j = 0; j < f->m; j++)
 		printf(j & 1 ? BITFORMAT : WHITE(BITFORMAT), GET(DATA(f, i), j));
 
 	std::cout << " = " << f->v[i] << std::endl;
 }
 
-void print(const func *f, const char *title, const chunk *s) {
+__attribute__((always_inline)) inline
+void print(const func *f, const char *title = NULL, const chunk *s = NULL) {
 
 	if (title) printf("%s\n", title);
-	register dim i;
 
-	for (i = 0; i < f->m; i++) printf(i & 1 ? FORMAT : WHITE(FORMAT), i);
+	for (dim i = 0; i < f->m; i++) printf(i & 1 ? FORMAT : WHITE(FORMAT), i);
 	printf("\n");
 
-	for (i = 0; i < f->m; i++)
+	for (dim i = 0; i < f->m; i++)
 		if (s) {
 			if ((s[DIVBPC(i)] >> MODBPC(i)) & 1) printf(i & 1 ? DARKGREEN(FORMAT) : GREEN(FORMAT), f->vars[i]);
 			else printf(i & 1 ? DARKRED(FORMAT) : RED(FORMAT), f->vars[i]);
 		} else printf(i & 1 ? DARKCYAN(FORMAT) : CYAN(FORMAT), f->vars[i]);
 	printf("\n");
 
-	for (i = 0; i < f->n; i++) printrow(f, i);
+	for (dim i = 0; i < f->n; i++) printrow(f, i);
 }
 
 #define SWAP(V, I, J) do { register chunk d = GET(V, I) ^ GET(V, J); (V)[DIVBPC(I)] ^= d << MODBPC(I); (V)[DIVBPC(J)] ^= d << MODBPC(J); } while (0)
 
+__attribute__((always_inline)) inline
 void shared2least(const func *f, chunk* m) {
 
 	register dim x, y, i, n = 0;
@@ -80,6 +80,7 @@ void shared2least(const func *f, chunk* m) {
 	} while (--n);
 }
 
+__attribute__((always_inline)) inline
 void reordershared(const func *f, id *vars) {
 
 	if (!memcmp(f->vars, vars, sizeof(id) * f->s)) return;
@@ -103,31 +104,38 @@ void reordershared(const func *f, id *vars) {
 	free(v);
 }
 
-dim uniquecombinations(const func *f, dim idx) {
+template<bool I = false>
+__attribute__((always_inline)) inline
+dim uniquecombinations(const func *f, dim idx = 0) {
 
 	if (!f->n) return 0;
 
 	register dim u = 1;
 
 	for (dim i = 1 + idx; i < f->n; i++)
-		if (COMPARE(DATA(f, i - 1), DATA(f, i), f->s, f->mask)) u++;
+		if (I ? INVCOMPARE(DATA(f, i - 1), DATA(f, i), f->c, f->s, f->mask) : \
+			COMPARE(DATA(f, i - 1), DATA(f, i), f->c, f->s, f->mask)) u++;
 
 	return u;
 }
 
-void histogram(const func *f, dim idx) {
+template<bool I = false>
+__attribute__((always_inline)) inline
+void histogram(const func *f, dim idx = 0) {
 
 	if (f->n - idx && f->h) {
 
 		f->h[0] = 1;
 
 		for (dim i = 1 + idx, k = 0; i < f->n; i++) {
-			if (COMPARE(DATA(f, i - 1), DATA(f, i), f->s, f->mask)) k++;
+			if (I ? INVCOMPARE(DATA(f, i - 1), DATA(f, i), f->c, f->s, f->mask) : \
+				COMPARE(DATA(f, i - 1), DATA(f, i), f->c, f->s, f->mask)) k++;
 			f->h[k]++;
 		}
 	}
 }
 
+__attribute__((always_inline)) inline
 void markmatchingrows(const func *f1, const func *f2, dim *n1, dim *n2, dim *hn) {
 
 	register dim i1, i2, j1, j2;
@@ -135,7 +143,7 @@ void markmatchingrows(const func *f1, const func *f2, dim *n1, dim *n2, dim *hn)
 	register char cmp;
 
 	while (i1 != f1->n && i2 != f2->n)
-		if ((cmp = COMPARE(DATA(f1, i1), DATA(f2, i2), f1->s, f1->mask)))
+		if ((cmp = COMPARE(DATA(f1, i1), DATA(f2, i2), f1->c, f1->s, f1->mask)))
 			if (cmp < 0) i1 += f1->h[j1++];
 			else i2 += f2->h[j2++];
 		else {
@@ -151,6 +159,7 @@ void markmatchingrows(const func *f1, const func *f2, dim *n1, dim *n2, dim *hn)
 		}
 }
 
+__attribute__((always_inline)) inline
 void copymatchingrows(func *f1, func *f2, dim n1, dim n2, dim hn) {
 
         register dim i1, i2, i3, i4, j1, j2, j3, j4;

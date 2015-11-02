@@ -5,14 +5,14 @@
 
 typedef uint16_t id;
 #define MAXID USHRT_MAX
-typedef uint16_t value;
-#define MAXVALUE USHRT_MAX
+typedef float value;
+#define MAXVALUE FLT_MAX
 
-typedef uint32_t chunk;
-#define BITSPERCHUNK 32
-#define ZERO 0U
-#define ONE 1U
-#define BITFORMAT "%" WIDTH "u"
+typedef uint64_t chunk;
+#define BITSPERCHUNK 64
+#define ZERO 0ULL
+#define ONE 1ULL
+#define BITFORMAT "%" WIDTH "lu"
 typedef uint32_t dim;
 
 typedef struct {

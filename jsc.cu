@@ -382,28 +382,6 @@ func jointsum(func *f1, func *f2) {
 	TIMER_STOP;
 	ADDTIME_STOP;
 
-	//chunk cc[max(f1->c, f2->c)];
-	//ONES(cc, f1->s, max(f1->c, f2->c));
-	//print(f1, "f1", cc);
-	//print(f2, "f2", cc);
-	//printf("f1 = %u\n", crc32func(f1));
-	//printf("f2 = %u\n", crc32func(f2));
-	//BREAKPOINT("");
-
-	/*TIMER_START(YELLOW("Finding Intersections..."));
-	register const dim cn1 = CEILBPC(f1->n);
-	register const dim cn2 = CEILBPC(f2->n);
-	register chunk *m1 = (chunk *)calloc(cn1, sizeof(chunk));
-	register chunk *m2 = (chunk *)calloc(cn2, sizeof(chunk));
-	markintersections(f1, m1, f2, m2);
-	TIMER_STOP;*/
-
-	//print(f1, "f1", cc);
-	//print(f2, "f2", cc);
-	//printf("f1 = %u\n", crc32func(f1));
-	//printf("f2 = %u\n", crc32func(f2));
-	//BREAKPOINT("");
-
 	#ifdef PRINTINFO
 	printf(MAGENTA("Table 1 has %u rows and %u variables (%zu bytes)\n"), f1->n, f1->m, (sizeof(chunk) * f1->c + sizeof(value)) * f1->n);
 	printf(MAGENTA("Table 2 has %u rows and %u variables (%zu bytes)\n"), f2->n, f2->m, (sizeof(chunk) * f2->c + sizeof(value)) * f2->n);
@@ -654,7 +632,7 @@ func jointsum(func *f1, func *f2) {
 	free(bh);
 
 	//printf("f3 = %u\n", crc32func(&f3));
-	//print(&f3, "f3", cc);
+	//print(&f3, "Joint sum result");
 	//register const dim crcn = 4194256 + 1;
 	//if (debug) printf("%u\n", crc32(f3.data, sizeof(chunk) * f3.c * f3.n));
 	//if (debug) printf("%u\n", crc32(f3.v, sizeof(value) * f3.n));

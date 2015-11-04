@@ -37,11 +37,10 @@ void randomvalues(func *f) {
 
 void sharedmasks(func *f1, chunk* s1, func *f2, chunk* s2) {
 
-	register dim i, j;
 	f1->s = f2->s = 0;
 
-	for (i = 0; i < f1->m; i++)
-		for (j = 0; j < f2->m; j++)
+	for (dim i = 0; i < f1->m; i++)
+		for (dim j = 0; j < f2->m; j++)
 			if (f1->vars[i] == f2->vars[j]) {
 				SET(s1, i);
 				SET(s2, j);
@@ -54,10 +53,9 @@ void sharedmasks(func *f1, chunk* s1, func *f2, chunk* s2) {
 __attribute__((always_inline))
 inline void move(chunk *data, dim c, dim n1, dim n2) {
 
-	register dim i;
 	chunk *t = (chunk *)malloc(sizeof(chunk) * n2);
 
-	for (i = 0; i < c - 1; i++) {
+	for (dim i = 0; i < c - 1; i++) {
 		memcpy(t, data + i * (n1 + n2) + (c - i) * n1, sizeof(chunk) * n2);
 		memmove(data + (i + 1) * (n1 + n2), data + i * (n1 + n2) + n1, sizeof(chunk) * (c - i - 1) * n1);
 		memcpy(data + i * (n1 + n2) + n1, t, sizeof(chunk) * n2);
@@ -90,15 +88,16 @@ void transpose(chunk *data, dim r, dim c) {
 
 void prefixsum(const dim *hi, dim *ho, dim hn) {
 
-	register dim i;
 	ho[0] = hi[0];
-	for (i = 1; i < hn; i++) ho[i] = hi[i] + ho[i - 1];
+
+	for (dim i = 1; i < hn; i++)
+		ho[i] = hi[i] + ho[i - 1];
 }
 
 void histogramproduct(const dim *h1, const dim *h2, dim *ho, dim hn) {
 
-	register dim i;
-	for (i = 0; i < hn; i++) ho[i] = h1[i] * h2[i];
+	for (dim i = 0; i < hn; i++)
+		ho[i] = h1[i] * h2[i];
 }
 
 unsigned crc32func(const func *f) {

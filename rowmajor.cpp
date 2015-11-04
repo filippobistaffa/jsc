@@ -1,15 +1,5 @@
 #include "jsc.h"
 
-/*void randomdata(func *f) { // assumes BITSPERCHUNK == 64
-
-	register dim i, j;
-
-	for (i = 0; i < f->n; i++) {
-		for (j = 0; j < DIVBPC(f->m); j++) f->data[j * f->n + i] = genrand64_int64();
-		if (MODBPC(f->m)) f->data[DIVBPC(f->m) * f->n + i] = genrand64_int64() & ((ONE << MODBPC(f->m)) - 1);
-	}
-}*/
-
 #define WIDTH "3"
 #define FORMAT "%" WIDTH "u"
 #include <iostream>
@@ -41,7 +31,9 @@ void print(const func *f, const char *title = NULL, const chunk *s = NULL) {
 	for (dim i = 0; i < f->n; i++) printrow(f, i);
 }
 
-#define SWAP(V, I, J) do { register chunk d = GET(V, I) ^ GET(V, J); (V)[DIVBPC(I)] ^= d << MODBPC(I); (V)[DIVBPC(J)] ^= d << MODBPC(J); } while (0)
+#define SWAP(V, I, J) do { register const chunk d = GET(V, I) ^ GET(V, J); \
+			   (V)[DIVBPC(I)] ^= d << MODBPC(I); \
+			   (V)[DIVBPC(J)] ^= d << MODBPC(J); } while (0)
 
 __attribute__((always_inline)) inline
 void shared2least(const func *f, chunk* m) {
@@ -85,13 +77,12 @@ void reordershared(const func *f, id *vars) {
 
 	if (!memcmp(f->vars, vars, sizeof(id) * f->s)) return;
 
-	register dim i;
 	register const dim cs = CEILBPC(f->s);
 	id *v = (id *)malloc(sizeof(id) * MAXVAR);
-	for (i = 0; i < f->s; i++) v[vars[i]] = i;
+	for (dim i = 0; i < f->s; i++) v[vars[i]] = i;
 
-	#pragma omp parallel for private(i)
-	for (i = 0; i < f->n; i++) {
+	#pragma omp parallel for
+	for (dim i = 0; i < f->n; i++) {
 		chunk s[cs];
 		register dim j;
 		memset(s, 0, sizeof(chunk) * cs);

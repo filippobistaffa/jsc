@@ -45,8 +45,8 @@
 #include "common.h"
 #include "crc32.h"
 
-#ifdef __CUDACC__ // CUDA
 #include "rowmajor.cpp"
+#ifdef __CUDACC__ // CUDA
 #include "sort.cpp"
 #include "jsc.cuh"
 #include "jsc.cu"

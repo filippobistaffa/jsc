@@ -67,7 +67,7 @@ log(MAX_THRESH)).
 #define QC (sizeof(T) / sizeof(chunk))
 #define QCMP(A, B, C, S, M) ((I) ? INVCOMPARE(A, B, C, S, M) : COMPARE(A, B, C, S, M))
 
-template<typename T, dim S, bool I>
+template<typename T, bool I>
 __attribute__((always_inline)) inline
 void qsort(const func *f) {
 
@@ -103,10 +103,10 @@ void qsort(const func *f) {
 
 			T *mid = lo + ((hi - lo) >> 1);
 
-			if (QCMP(CHUNK(mid), CHUNK(lo), QC, S, f->mask) < 0) QSWAP(mid, lo);
-			if (QCMP(CHUNK(hi), CHUNK(mid), QC, S, f->mask) < 0) QSWAP(mid, hi);
+			if (QCMP(CHUNK(mid), CHUNK(lo), QC, f->s, f->mask) < 0) QSWAP(mid, lo);
+			if (QCMP(CHUNK(hi), CHUNK(mid), QC, f->s, f->mask) < 0) QSWAP(mid, hi);
 			else goto jump_over;
-			if (QCMP(CHUNK(mid), CHUNK(lo), QC, S, f->mask) < 0) QSWAP(mid, lo);
+			if (QCMP(CHUNK(mid), CHUNK(lo), QC, f->s, f->mask) < 0) QSWAP(mid, lo);
 			jump_over:;
 
 			left_ptr = lo + 1;
@@ -116,8 +116,8 @@ void qsort(const func *f) {
 			Gotta like those tight inner loops! They are the main reason
 			that this algorithm runs much faster than others. */
 			do {
-				while (QCMP(CHUNK(left_ptr), CHUNK(mid), QC, S, f->mask) < 0) left_ptr++;
-				while (QCMP(CHUNK(mid), CHUNK(right_ptr), QC, S, f->mask) < 0) right_ptr--;
+				while (QCMP(CHUNK(left_ptr), CHUNK(mid), QC, f->s, f->mask) < 0) left_ptr++;
+				while (QCMP(CHUNK(mid), CHUNK(right_ptr), QC, f->s, f->mask) < 0) right_ptr--;
 
 				if (left_ptr < right_ptr) {
 					QSWAP(left_ptr, right_ptr);
@@ -175,7 +175,7 @@ void qsort(const func *f) {
 		and the operation speeds up insertion sort's inner loop. */
 
 		for (run_ptr = tmp_ptr + 1; run_ptr <= thresh; run_ptr++)
-			if (QCMP(CHUNK(run_ptr), CHUNK(tmp_ptr), QC, S, f->mask) < 0) tmp_ptr = run_ptr;
+			if (QCMP(CHUNK(run_ptr), CHUNK(tmp_ptr), QC, f->s, f->mask) < 0) tmp_ptr = run_ptr;
 
 		if (tmp_ptr != base_ptr) QSWAP(tmp_ptr, base_ptr);
 
@@ -185,7 +185,7 @@ void qsort(const func *f) {
 		while ((run_ptr += 1) <= end_ptr) {
 
 			tmp_ptr = run_ptr - 1;
-			while (QCMP(CHUNK(run_ptr), CHUNK(tmp_ptr), QC, S, f->mask) < 0) tmp_ptr--;
+			while (QCMP(CHUNK(run_ptr), CHUNK(tmp_ptr), QC, f->s, f->mask) < 0) tmp_ptr--;
 			tmp_ptr++; // current element's final position
 
 			if (tmp_ptr != run_ptr) {

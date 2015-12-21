@@ -4,7 +4,12 @@
 //#include <thrust/copy.h>
 //#include <thrust/sort.h>
 
-#define NATIVESORT(F, I) (cubsort<chunk,I>(F))
+#ifdef PRINTTIME
+static struct timeval t1, t2;
+#endif
+
+//#define NATIVESORT(F, I) (cubsort<chunk,I>(F))
+#define NATIVESORT(F, I) (templatesort<chunk,I>(F))
 
 using namespace cub;
 CachingDeviceAllocator g_allocator(true);
@@ -13,6 +18,7 @@ template<typename T, bool I>
 __attribute__((always_inline)) inline
 void cubsort(const func *f) {
 
+	TIMER_START(GREEN("Sort..."));
 	DoubleBuffer<chunk> d_keys;
 	DoubleBuffer<value> d_values;
 	CubDebugExit(g_allocator.DeviceAllocate((void**)&d_keys.d_buffers[0], sizeof(chunk) * f->n));
@@ -33,6 +39,7 @@ void cubsort(const func *f) {
 	CubDebugExit(g_allocator.DeviceFree(d_values.d_buffers[0]));
 	CubDebugExit(g_allocator.DeviceFree(d_values.d_buffers[1]));
 	CubDebugExit(g_allocator.DeviceFree(ts));
+	TIMER_STOP;
 }
 
 template<typename T, dim S>
@@ -53,7 +60,9 @@ __attribute__((always_inline)) inline
 void templatesort(const func *f) {
 
 	//thrustsort<T,S>(casted, v, n);
+	TIMER_START(YELLOW("Sort..."));
 	qsort<T,I>(f);
+	TIMER_STOP;
 }
 
 template<bool I = false>
@@ -61,6 +70,6 @@ __attribute__((always_inline)) inline
 void sort(const func *f) {
 
 	if (f->n < 2) return;
-	assert(f->c <= 4);
+	assert(f->c <= 10);
 	#include "switch.i"
 }

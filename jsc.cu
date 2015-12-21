@@ -2,10 +2,6 @@
 #include "jsc.h"
 #endif
 
-#ifdef PRINTTIME
-static struct timeval t1, t2;
-#endif
-
 static struct timeval t1a, t2a;
 static double at = 0;
 
@@ -387,10 +383,10 @@ func jointsum(func *f1, func *f2) {
 	printf(MAGENTA("Table 2 has %u rows and %u variables (%zu bytes)\n"), f2->n, f2->m, (sizeof(chunk) * f2->c + sizeof(value)) * f2->n);
 	#endif
 
-	TIMER_START(GREEN("Sort..."));
+	//TIMER_START(GREEN("Sort..."));
 	sort(f1);
 	sort(f2);
-	TIMER_STOP;
+	//TIMER_STOP;
 
 	ADDTIME_START;
 	TIMER_START(YELLOW("Histogram..."));

@@ -131,7 +131,7 @@ void markmatchingrows(const func *f1, const func *f2, dim *n1, dim *n2, dim *hn)
 
 	register dim i1, i2, j1, j2;
 	i1 = i2 = j1 = j2 = *n1 = *n2 = *hn = 0;
-	register char cmp;
+	register int cmp;
 
 	while (i1 != f1->n && i2 != f2->n)
 		if ((cmp = COMPARE(DATA(f1, i1), DATA(f2, i2), f1->c, f1->s, f1->mask)))
@@ -155,14 +155,14 @@ void copymatchingrows(func *f1, func *f2, dim n1, dim n2, dim hn) {
 
         register dim i1, i2, i3, i4, j1, j2, j3, j4;
         i1 = i2 = i3 = i4 = j1 = j2 = j3 = j4 = 0;
-	register char cmp;
+	register int cmp;
 
-        chunk *d1 = (chunk *)malloc(sizeof(chunk) * n1 * f1->c);
-        chunk *d2 = (chunk *)malloc(sizeof(chunk) * n2 * f2->c);
+	chunk *d1 = (chunk *)malloc(sizeof(chunk) * n1 * f1->c);
+	chunk *d2 = (chunk *)malloc(sizeof(chunk) * n2 * f2->c);
 	value *v1 = (value *)malloc(sizeof(value) * n1);
 	value *v2 = (value *)malloc(sizeof(value) * n2);
-        dim *h1 = (dim *)malloc(sizeof(dim) * hn);
-        dim *h2 = (dim *)malloc(sizeof(dim) * hn);
+	dim *h1 = (dim *)malloc(sizeof(dim) * hn);
+	dim *h2 = (dim *)malloc(sizeof(dim) * hn);
 
 	// i1 and i2: current row in f1->data and f2->data, f1->v and f2->v
 	// i3 and i4: current row in d1 and d2, v1 and v2

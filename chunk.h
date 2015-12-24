@@ -53,4 +53,3 @@ typedef struct chunk49 { chunk x[49]; } chunk49;
 typedef struct chunk50 { chunk x[50]; } chunk50;
 
 #endif /* TYPES_H_ */
-

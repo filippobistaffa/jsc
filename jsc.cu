@@ -352,6 +352,11 @@ func jointsum(func *f1, func *f2) {
 	fflush(stdout);
 	#endif
 
+	#ifdef PRINTINFO
+	printf(MAGENTA("Table 1 has %u rows and %u variables (%zu bytes)\n"), f1->n, f1->m, (sizeof(chunk) * f1->c + sizeof(value)) * f1->n);
+	printf(MAGENTA("Table 2 has %u rows and %u variables (%zu bytes)\n"), f2->n, f2->m, (sizeof(chunk) * f2->c + sizeof(value)) * f2->n);
+	#endif
+
 	register func f3;
 	register chunk *c1 = (chunk *)calloc(f1->c, sizeof(chunk));
 	register chunk *c2 = (chunk *)calloc(f2->c, sizeof(chunk));
@@ -382,11 +387,6 @@ func jointsum(func *f1, func *f2) {
 	if (f1->mask) c1[DIVBPC(f1->s)] = f1->mask;
 	print(f1, "f1 after shift and reorder", c1);
 	print(f2, "f2 after shift and reorder", c1);
-	#endif
-
-	#ifdef PRINTINFO
-	printf(MAGENTA("Table 1 has %u rows and %u variables (%zu bytes)\n"), f1->n, f1->m, (sizeof(chunk) * f1->c + sizeof(value)) * f1->n);
-	printf(MAGENTA("Table 2 has %u rows and %u variables (%zu bytes)\n"), f2->n, f2->m, (sizeof(chunk) * f2->c + sizeof(value)) * f2->n);
 	#endif
 
 	sort(f1);

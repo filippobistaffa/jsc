@@ -187,10 +187,10 @@ __global__ void jointsumkernel(func f1, func f2, func f3, chunk *d1, chunk *d2, 
 
 		// if i.z = 0 (i.e., if f.m is a multiple of BITSPERCHUNK, I don't have to copy anything from the first table
 		chunk t = i.z ? shd[i.x + j.x * (f1.c - 1)] : 0;
-		//#ifdef DEBUGKERNEL
-		//printf("[" YELLOW("% 3u") "," GREEN("% 3u") "] i = [ .x = % 3u .y = % 3u .z = % 3u .w = % 3u ] t = %lu\n", bx, tx, i.x, i.y, i.z, i.w, t);
-		//printf("[" YELLOW("% 3u") "," GREEN("% 3u") "] o = [ .x = % 3u .y = % 3u .z = % 3u ]\n", bx, tx, o.x, o.y, o.z);
-		//#endif
+		#ifdef DEBUGKERNEL
+		printf("[" YELLOW("% 3u") "," GREEN("% 3u") "] i = [ .x = % 3u .y = % 3u .z = % 3u .w = % 3u ] t = %lu\n", bx, tx, i.x, i.y, i.z, i.w, t);
+		printf("[" YELLOW("% 3u") "," GREEN("% 3u") "] o = [ .x = % 3u .y = % 3u .z = % 3u ]\n", bx, tx, o.x, o.y, o.z);
+		#endif
 
 		if (i.z || f2.m - f2.s) {
 			h = f2.s / BITSPERCHUNK;
@@ -308,8 +308,6 @@ dim linearbinpacking(func *f1, func *f2, dim *hp, uint4 *o, dim *ho, dim *hi) {
 			//printbuf(hi, idx + 1, "hi");
 
 			if (m + gb > ag | r + rb > ag / TRANSPOSEFACTOR) {
-				//if (debug) printf("%zu %zu %zu %zu\n", m, gb, r, rb);
-				//if (debug) puts("splitting");
 				gb = m + 3 * sizeof(dim);
 				rb = r;
 				ko = k;
@@ -367,8 +365,10 @@ func jointsum(func *f1, func *f2) {
 	f3.mask = f1->mask;
 	f3.m = f1->m + f2->m - f1->s;
 
-	//print(f1, "f1", c1);
-	//print(f2, "f2", c2);
+	#ifdef PRINTDEBUG
+	print(f1, "f1", c1);
+	print(f2, "f2", c2);
+	#endif
 
 	ADDTIME_START;
 	TIMER_START(YELLOW("Shift & Reorder..."));
@@ -376,19 +376,27 @@ func jointsum(func *f1, func *f2) {
 	shared2least(f2, c2);
 	reordershared(f2, f1->vars);
 	TIMER_STOP;
-	ADDTIME_STOP;
+
+	#ifdef PRINTDEBUG
+	memset(c1, 0xFF, sizeof(chunk) * DIVBPC(f1->s));
+	if (f1->mask) c1[DIVBPC(f1->s)] = f1->mask;
+	print(f1, "f1 after shift and reorder", c1);
+	print(f2, "f2 after shift and reorder", c1);
+	#endif
 
 	#ifdef PRINTINFO
 	printf(MAGENTA("Table 1 has %u rows and %u variables (%zu bytes)\n"), f1->n, f1->m, (sizeof(chunk) * f1->c + sizeof(value)) * f1->n);
 	printf(MAGENTA("Table 2 has %u rows and %u variables (%zu bytes)\n"), f2->n, f2->m, (sizeof(chunk) * f2->c + sizeof(value)) * f2->n);
 	#endif
 
-	//TIMER_START(GREEN("Sort..."));
 	sort(f1);
 	sort(f2);
-	//TIMER_STOP;
 
-	ADDTIME_START;
+	#ifdef PRINTDEBUG
+	print(f1, "f1 after sort", c1);
+	print(f2, "f2 after sort", c1);
+	#endif
+
 	TIMER_START(YELLOW("Histogram..."));
 	f1->hn = uniquecombinations(f1);
 	f2->hn = uniquecombinations(f2);
@@ -399,6 +407,11 @@ func jointsum(func *f1, func *f2) {
 	TIMER_STOP;
 	ADDTIME_STOP;
 
+	#ifdef PRINTDEBUG
+	printbuf(f1->h, f1->hn, "f1->h");
+	printbuf(f2->h, f2->hn, "f2->h");
+	#endif
+
 	TIMER_START(YELLOW("Matching Rows..."));
 	f1->hmask = (chunk *)calloc(CEILBPC(f1->hn), sizeof(chunk));
 	f2->hmask = (chunk *)calloc(CEILBPC(f2->hn), sizeof(chunk));
@@ -406,6 +419,13 @@ func jointsum(func *f1, func *f2) {
 	markmatchingrows(f1, f2, &n1, &n2, &hn);
 	copymatchingrows(f1, f2, n1, n2, hn);
 	TIMER_STOP;
+
+	#ifdef PRINTDEBUG
+	print(f1, "f1 after matching", c1);
+	print(f2, "f2 after matching", c1);
+	printbuf(f1->h, hn, "f1->h");
+	printbuf(f2->h, hn, "f2->h");
+	#endif
 
 	#ifdef PRINTINFO
 	printf(MAGENTA("%u histogram groups\n"), hn);
@@ -418,7 +438,6 @@ func jointsum(func *f1, func *f2) {
 	}
 
 	assert(f1->hn == f2->hn);
-	//BREAKPOINT("GOOD?");
 
 	#ifdef __CUDACC__
 	dim *h1d, *h2d, *hpd, *pfxh1d, *pfxh2d, *pfxhpd, *f3n;
@@ -449,12 +468,6 @@ func jointsum(func *f1, func *f2) {
 	printf(RED("Total result size = %zu bytes (%u lines)\n"), sizeof(chunk) * f3.n * CEILBPC(f3.m), f3.n);
 	#endif
 
-	//register const bool debug = false; //(f1->n == 1572872 && f2->n == 131104);
-	//printf("debug = %u %u %u\n", debug, f1->n, f2->n);
-
-	//register const bool debug = sizeof(chunk) * f3.n * CEILBPC(f3.m) > GLOBALSIZE / TRANSPOSEFACTOR;
-	//if (debug) BREAKPOINT("");
-
 	ALLOCFUNC(&f3);
 	memcpy(f3.vars, f1->vars, sizeof(id) * f1->m);
 	memcpy(f3.vars + f1->m, f2->vars + f2->s, sizeof(id) * (f2->m - f1->s));
@@ -480,31 +493,11 @@ func jointsum(func *f1, func *f2) {
 	TIMER_STOP;
 	//bh = (uint4 *)realloc(bh, sizeof(uint4) * bn);
 
-	//for (dim j = 0; j < hn; j++) printf("%u * %u = %u (%zu bytes)\n", f1->h[j], f2->h[j], hp[j], MEMORY(f1->h[j], f2->h[j], hp[j]));
-	//printf("%u\n", runs);
-
-	//if (debug) BREAKPOINT("");
 	assert(runs <= hn);
 	dim *pfxho = (dim *)malloc(sizeof(dim) * runs);
 	dim *pfxhi = (dim *)malloc(sizeof(dim) * runs);
 	exclprefixsum(ho, pfxho, runs);
 	exclprefixsum(hi, pfxhi, runs);
-
-	/*if (debug) {
-		printbuf(ho, runs, "ho");
-		printbuf(hi, runs, "hi");
-		printbuf(pfxho, runs, "pfxho");
-		printbuf(pfxhi, runs, "pfxhi");
-
-		for (dim r = 0; r < runs; r++) {
-			printf("Run %u\n", r);
-			for (dim j = 0; j < ho[r]; j++)
-				printf("%3u = %3u %3u %3u %3u\n", j, bh[pfxho[r] + j].x, bh[pfxho[r] + j].y, bh[pfxho[r] + j].z, bh[pfxho[r] + j].w);
-		}
-
-		//BREAKPOINT("");
-	}*/
-
 	dim *pfxh1 = (dim *)malloc(sizeof(dim) * hn);
 	dim *pfxh2 = (dim *)malloc(sizeof(dim) * hn);
 	exclprefixsum(f1->h, pfxh1, hn);
@@ -556,7 +549,6 @@ func jointsum(func *f1, func *f2) {
 		#ifdef PRINTSIZE
 		if (runs > 1) printf(RED("Run result size = %zu bytes (%u lines)\n"), sizeof(chunk) * f3nr * CEILBPC(f3.m), f3nr);
 		#endif
-		//if (debug) printf("%u %u %u\n", f1nr, f2nr, f3nr);
 
 		cudaMalloc(&v1d, sizeof(value) * f1nr);
 		cudaMalloc(&v2d, sizeof(value) * f2nr);
@@ -632,12 +624,9 @@ func jointsum(func *f1, func *f2) {
 	free(hp);
 	free(bh);
 
-	//printf("f3 = %u\n", crc32func(&f3));
-	//print(&f3, "Joint sum result");
-	//register const dim crcn = 4194256 + 1;
-	//if (debug) printf("%u\n", crc32(f3.data, sizeof(chunk) * f3.c * f3.n));
-	//if (debug) printf("%u\n", crc32(f3.v, sizeof(value) * f3.n));
-	//if (debug) BREAKPOINT("");
+	#ifdef PRINTDEBUG
+	print(&f3, "Joint sum result", c1);
+	#endif
 
 	#endif
 	free(f1->hmask);

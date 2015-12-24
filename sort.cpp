@@ -70,6 +70,6 @@ __attribute__((always_inline)) inline
 void sort(const func *f) {
 
 	if (f->n < 2) return;
-	assert(f->c <= 10);
+	assert(f->c <= 100);
 	#include "switch.i"
 }

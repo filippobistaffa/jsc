@@ -40,7 +40,11 @@ void shared2least(const func *f, chunk* m) {
 
 	register dim x, y, i, n = 0;
 	register id t;
-	chunk s[f->c], a[f->c], o[f->c];
+	//chunk s[f->c], a[f->c], o[f->c];
+	chunk *s = (chunk *)malloc(sizeof(chunk) * f->c);
+	chunk *a = (chunk *)malloc(sizeof(chunk) * f->c);
+	chunk *o = (chunk *)malloc(sizeof(chunk) * f->c);
+
 	memset(s, 0, sizeof(chunk) * f->c);
 
 	for (i = 0; i < DIVBPC(f->s); i++) s[i] = ~ZERO;
@@ -70,6 +74,10 @@ void shared2least(const func *f, chunk* m) {
 		o[DIVBPC(x)] ^= ONE << MODBPC(x);
 		a[DIVBPC(y)] ^= ONE << MODBPC(y);
 	} while (--n);
+
+	free(s);
+	free(a);
+	free(o);
 }
 
 __attribute__((always_inline)) inline
@@ -83,12 +91,12 @@ void reordershared(const func *f, id *vars) {
 
 	#pragma omp parallel for
 	for (dim i = 0; i < f->n; i++) {
-		chunk s[cs];
+		register chunk *s = (chunk *)calloc(cs, sizeof(chunk));
 		register dim j;
-		memset(s, 0, sizeof(chunk) * cs);
 		for (j = 0; j < f->s; j++) if GET(DATA(f, i), j) SET(s, v[f->vars[j]]);
-		for (; j < f->c * BITSPERCHUNK; j++) if GET(DATA(f, i), j) SET(s, j);
+		for (; j < cs * BITSPERCHUNK; j++) if GET(DATA(f, i), j) SET(s, j);
 		memcpy(DATA(f, i), s, sizeof(chunk) * cs);
+		free(s);
 	}
 
 	memcpy(f->vars, vars, sizeof(id) * f->s);

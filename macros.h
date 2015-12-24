@@ -55,4 +55,6 @@
 #define ONES(V, I, C) do { register dim _i; register const dim _mi = MODBPC(I); for (_i = 0; _i < (C); _i++) (V)[_i] = ~ZERO; \
 			   if (_mi) (V)[(C) - 1] = (ONE << _mi) - 1; } while (0)
 
+#define WARMUPGPU do { char *dummy; cudaMalloc(&dummy, 0); cudaFree(dummy); } while (0)
+
 #endif  /* MACROS_H_ */

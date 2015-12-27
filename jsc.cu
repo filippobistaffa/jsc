@@ -289,7 +289,6 @@ dim linearbinpacking(func *f1, func *f2, dim *hp, uint4 *o, dim *ho, dim *hi) {
 
 		m = i == f1->hn ? 0 : MEMORY(f1->h[i], f2->h[i], hp[i]);
 		r = i == f1->hn ? 0 : RESULTDATA(hp[i]);
-		//if (debug) printf("m = %zu r = %zu %u %u %u\n", m, r, f1->h[i], f2->h[i], hp[i]);
 		assert(m <= ag);
 		assert(r <= ag / TRANSPOSEFACTOR);
 

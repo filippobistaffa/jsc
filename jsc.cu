@@ -405,7 +405,6 @@ func jointsum(func *f1, func *f2) {
 	histogram(f1);
 	histogram(f2);
 	TIMER_STOP;
-	ADDTIME_STOP;
 
 	#ifdef PRINTDEBUG
 	printbuf(f1->h, f1->hn, "f1->h");
@@ -419,6 +418,7 @@ func jointsum(func *f1, func *f2) {
 	markmatchingrows(f1, f2, &n1, &n2, &hn);
 	copymatchingrows(f1, f2, n1, n2, hn);
 	TIMER_STOP;
+	ADDTIME_STOP;
 
 	#ifdef PRINTDEBUG
 	print(f1, "f1 after matching", c1);

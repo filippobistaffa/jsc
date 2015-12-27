@@ -452,8 +452,7 @@ func jointsum(func *f1, func *f2) {
 	cudaMemcpy(h2d, f2->h, sizeof(dim) * hn, cudaMemcpyHostToDevice);
 
 	histogramproductkernel<<<CEIL(hn, THREADSPERBLOCK), THREADSPERBLOCK>>>(h1d, h2d, hpd, hn);
-	gpuerrorcheck(cudaPeekAtLastError());
-	gpuerrorcheck(cudaDeviceSynchronize());
+	GPUERRORCHECK;
 
 	cudaMalloc(&f3n, sizeof(dim));
 	void *ts = NULL;
@@ -562,8 +561,7 @@ func jointsum(func *f1, func *f2) {
 		dim3 grid1(CEIL(f1nr, BLOCK_DIM), CEIL(f1->c, BLOCK_DIM), 1);
 		dim3 threads(BLOCK_DIM, BLOCK_DIM, 1);
 		transpose<<<grid1,threads>>>(d1t, d1d, f1->c, f1nr);
-		gpuerrorcheck(cudaPeekAtLastError());
-		gpuerrorcheck(cudaDeviceSynchronize());
+		GPUERRORCHECK;
 		cudaFree(d1d);
 		TIMER_STOP;
 
@@ -573,8 +571,7 @@ func jointsum(func *f1, func *f2) {
 		cudaMalloc(&d2t, sizeof(chunk) * f2nr * f2->c);
 		dim3 grid2(CEIL(f2nr, BLOCK_DIM), CEIL(f2->c, BLOCK_DIM), 2);
 		transpose<<<grid2,threads>>>(d2t, d2d, f2->c, f2nr);
-		gpuerrorcheck(cudaPeekAtLastError());
-		gpuerrorcheck(cudaDeviceSynchronize());
+		GPUERRORCHECK;
 		cudaFree(d2d);
 		TIMER_STOP;
 
@@ -583,8 +580,7 @@ func jointsum(func *f1, func *f2) {
 
 		TIMER_START(GREEN("Joint sum..."));
 		jointsumkernel<<<bn, THREADSPERBLOCK>>>(*f1, *f2, f3, d1t, d2t, d3t, v1d, v2d, v3d, f1nr, f2nr, f3nr, pfxh1d, pfxh2d, pfxhpd, bd);
-		gpuerrorcheck(cudaPeekAtLastError());
-		gpuerrorcheck(cudaDeviceSynchronize());
+		GPUERRORCHECK;
 		cudaFree(d1t);
 		cudaFree(d2t);
 		cudaFree(v1d);
@@ -596,11 +592,10 @@ func jointsum(func *f1, func *f2) {
 		cudaFree(bd);
 
 		TIMER_START(GREEN("Transposing Result..."));
-		gpuerrorcheck(cudaMalloc(&d3d, sizeof(chunk) * f3nr * f3.c));
+		cudaMalloc(&d3d, sizeof(chunk) * f3nr * f3.c);
 		dim3 grid3(CEIL(f3nr, BLOCK_DIM), CEIL(f3.c, BLOCK_DIM), 1);
 		transposeback<<<grid3,threads>>>(d3d, d3t, f3nr, f3.c);
-		gpuerrorcheck(cudaPeekAtLastError());
-		gpuerrorcheck(cudaDeviceSynchronize());
+		GPUERRORCHECK;
 		cudaFree(d3t);
                 TIMER_STOP;
 

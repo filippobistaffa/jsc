@@ -26,7 +26,6 @@ inline void gpuassert(cudaError_t code, const char *file, int line, bool abort =
         }
 }
 
-
 #ifdef KERNELERRORCHECK
 #define GPUERRORCHECK do { gpuerrorcheck(cudaPeekAtLastError()); gpuerrorcheck(cudaDeviceSynchronize()); } while (0)
 #else

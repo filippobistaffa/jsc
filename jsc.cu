@@ -440,6 +440,8 @@ func jointsum(func *f1, func *f2) {
 
 	#ifdef __CUDACC__
 	dim *h1d, *h2d, *hpd, *pfxh1d, *pfxh2d, *pfxhpd, *f3n;
+	void *ts = NULL;
+	size_t tsn = 0;
 
 	cudaMalloc(&h1d, sizeof(dim) * hn);
 	cudaMalloc(&h2d, sizeof(dim) * hn);
@@ -449,11 +451,11 @@ func jointsum(func *f1, func *f2) {
 	cudaMalloc(&pfxhpd, sizeof(dim) * hn);
 	cudaMemcpy(h1d, f1->h, sizeof(dim) * hn, cudaMemcpyHostToDevice);
 	cudaMemcpy(h2d, f2->h, sizeof(dim) * hn, cudaMemcpyHostToDevice);
-	void *ts = NULL;
-	size_t tsn = 0;
+	dim *hp = (dim *)malloc(sizeof(dim) * hn);
 
 	if (hn > HNTHRESHOLD) {
 		histogramproductkernel<<<CEIL(hn, THREADSPERBLOCK), THREADSPERBLOCK>>>(h1d, h2d, hpd, hn);
+		cudaMemcpy(hp, hpd, sizeof(dim) * hn, cudaMemcpyDeviceToHost);
 		GPUERRORCHECK;
 		cudaMalloc(&f3n, sizeof(dim));
 		cub::DeviceReduce::Sum(ts, tsn, hpd, f3n, hn);
@@ -461,11 +463,9 @@ func jointsum(func *f1, func *f2) {
 		cub::DeviceReduce::Sum(ts, tsn, hpd, f3n, hn);
 		cudaMemcpy(&f3.n, f3n, sizeof(dim), cudaMemcpyDeviceToHost);
 	} else {
-		dim *hp = (dim *)malloc(sizeof(dim) * hn);
 		bufproduct(f1->h, f2->h, hp, hn);
 		cudaMemcpy(hpd, hp, sizeof(dim) * hn, cudaMemcpyHostToDevice);
 		f3.n = sumreduce(hp, hn);
-		free(hp);
 	}
 
 	#ifdef PRINTSIZE
@@ -475,10 +475,7 @@ func jointsum(func *f1, func *f2) {
 	ALLOCFUNC(&f3);
 	memcpy(f3.vars, f1->vars, sizeof(id) * f1->m);
 	memcpy(f3.vars + f1->m, f2->vars + f2->s, sizeof(id) * (f2->m - f1->s));
-
-	dim *hp = (dim *)malloc(sizeof(dim) * hn);
 	dim *pfxhp = (dim *)malloc(sizeof(dim) * hn);
-	cudaMemcpy(hp, hpd, sizeof(dim) * hn, cudaMemcpyDeviceToHost);
 
 	// bn = number of blocks needed
 	// each bh[i] stores the information regarding the i-th block

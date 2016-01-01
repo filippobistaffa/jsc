@@ -94,12 +94,6 @@ void prefixsum(const dim *hi, dim *ho, dim hn) {
 		ho[i] = hi[i] + ho[i - 1];
 }
 
-void histogramproduct(const dim *h1, const dim *h2, dim *ho, dim hn) {
-
-	for (dim i = 0; i < hn; i++)
-		ho[i] = h1[i] * h2[i];
-}
-
 unsigned crc32func(const func *f) {
 
 	unsigned crc[2] = { 0 };

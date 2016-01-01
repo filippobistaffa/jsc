@@ -449,18 +449,24 @@ func jointsum(func *f1, func *f2) {
 	cudaMalloc(&pfxhpd, sizeof(dim) * hn);
 	cudaMemcpy(h1d, f1->h, sizeof(dim) * hn, cudaMemcpyHostToDevice);
 	cudaMemcpy(h2d, f2->h, sizeof(dim) * hn, cudaMemcpyHostToDevice);
-
-	histogramproductkernel<<<CEIL(hn, THREADSPERBLOCK), THREADSPERBLOCK>>>(h1d, h2d, hpd, hn);
-	GPUERRORCHECK;
-
-	cudaMalloc(&f3n, sizeof(dim));
 	void *ts = NULL;
 	size_t tsn = 0;
 
-	cub::DeviceReduce::Sum(ts, tsn, hpd, f3n, hn);
-	cudaMalloc(&ts, tsn);
-	cub::DeviceReduce::Sum(ts, tsn, hpd, f3n, hn);
-	cudaMemcpy(&f3.n, f3n, sizeof(dim), cudaMemcpyDeviceToHost);
+	if (hn > HNTHRESHOLD) {
+		histogramproductkernel<<<CEIL(hn, THREADSPERBLOCK), THREADSPERBLOCK>>>(h1d, h2d, hpd, hn);
+		GPUERRORCHECK;
+		cudaMalloc(&f3n, sizeof(dim));
+		cub::DeviceReduce::Sum(ts, tsn, hpd, f3n, hn);
+		cudaMalloc(&ts, tsn);
+		cub::DeviceReduce::Sum(ts, tsn, hpd, f3n, hn);
+		cudaMemcpy(&f3.n, f3n, sizeof(dim), cudaMemcpyDeviceToHost);
+	} else {
+		dim *hp = (dim *)malloc(sizeof(dim) * hn);
+		bufproduct(f1->h, f2->h, hp, hn);
+		cudaMemcpy(hpd, hp, sizeof(dim) * hn, cudaMemcpyHostToDevice);
+		f3.n = sumreduce(hp, hn);
+		free(hp);
+	}
 
 	#ifdef PRINTSIZE
 	printf(RED("Total result size = %zu bytes (%u lines)\n"), sizeof(chunk) * f3.n * CEILBPC(f3.m), f3.n);
@@ -491,6 +497,7 @@ func jointsum(func *f1, func *f2) {
 	TIMER_STOP;
 	//bh = (uint4 *)realloc(bh, sizeof(uint4) * bn);
 
+	ADDTIME_START;
 	assert(runs <= hn);
 	dim *pfxho = (dim *)malloc(sizeof(dim) * runs);
 	dim *pfxhi = (dim *)malloc(sizeof(dim) * runs);
@@ -501,6 +508,7 @@ func jointsum(func *f1, func *f2) {
 	exclprefixsum(f1->h, pfxh1, hn);
 	exclprefixsum(f2->h, pfxh2, hn);
 	exclprefixsum(hp, pfxhp, hn);
+	ADDTIME_STOP;
 
 	for (dim r = 0; r < runs; r++) {
 

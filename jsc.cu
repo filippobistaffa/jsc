@@ -281,9 +281,9 @@ dim linearbinpacking(func *f1, func *f2, dim *hp, uint4 *o, dim *ho, dim *hi) {
 	cudaMemGetInfo(&free, &total);
 	register const size_t ag = free - sizeof(dim) * 6 * f1->hn;
 
-	//#ifdef PRINTSIZE
-	//printf(RED("%zu bytes available in global memory\n"), free);
-	//#endif
+	#ifdef PRINTSIZE
+	printf(RED("%zu free bytes / %zu total bytes on the GPU\n"), free, total);
+	#endif
 
 	for (i = 1; i <= f1->hn; i++) {
 
@@ -427,6 +427,8 @@ func jointsum(func *f1, func *f2) {
 	#endif
 
 	#ifdef PRINTINFO
+	printf(MAGENTA("Table 1 has %u rows and %u variables (%zu bytes) after matching\n"), f1->n, f1->m, (sizeof(chunk) * f1->c + sizeof(value)) * f1->n);
+	printf(MAGENTA("Table 2 has %u rows and %u variables (%zu bytes) after matching\n"), f2->n, f2->m, (sizeof(chunk) * f2->c + sizeof(value)) * f2->n);
 	printf(MAGENTA("%u histogram groups\n"), hn);
 	#endif
 
@@ -489,9 +491,9 @@ func jointsum(func *f1, func *f2) {
 	dim *ho = (dim *)malloc(sizeof(dim) * f3.n);
 	dim *hi = (dim *)malloc(sizeof(dim) * f3.n);
 
-	TIMER_START(YELLOW("Bin packing..."));
+	//TIMER_START(YELLOW("Bin packing..."));
 	register dim runs = linearbinpacking(f1, f2, hp, bh, ho, hi);
-	TIMER_STOP;
+	//TIMER_STOP;
 	//bh = (uint4 *)realloc(bh, sizeof(uint4) * bn);
 
 	ADDTIME_START;

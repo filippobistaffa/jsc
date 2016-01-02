@@ -5,13 +5,11 @@
 #include "types.h"
 
 #define TRANSPOSEFACTOR 2
-#define GLOBALSIZE 4294246400
-#define GLOBALMARGIN (700 * 1024 * 1024)
 #define SHAREDSIZE (44 * 1024)
 #define SHAREDMARGIN 128
 #define CONSTANTSIZE (60 * 1024)
 #define THREADSPERBLOCK 1024
-#define RESULTDATA(R3) (sizeof(chunk) * (R3) * (CEILBPC(f1->m + f2->m - f1->s) - DIVBPC(f1->m)))
+#define RESULTDATA(R3) (sizeof(chunk) * (R3) * CEILBPC(f1->m + f2->m - f1->s))
 #define MEMORY(R1, R2, R3) ((sizeof(chunk) * f1->c + sizeof(value)) * (R1) + \
 			    (sizeof(chunk) * f2->c + sizeof(value)) * (R2) + \
                    	    RESULTDATA(R3) + sizeof(value) * (R3) + sizeof(dim) * 3)

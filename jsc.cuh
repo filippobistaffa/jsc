@@ -3,6 +3,7 @@
 
 #include <cub/cub.cuh>
 #include "types.h"
+#include "inplace/inplace/transpose.h"
 
 #define TRANSPOSEFACTOR 2
 #define SHAREDSIZE (44 * 1024)

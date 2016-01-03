@@ -99,6 +99,6 @@ unsigned crc32func(const func *f) {
 	unsigned crc[2] = { 0 };
 	crc[0] = crc32(f->data, sizeof(chunk) * f->n * f->c);
 	crc[1] = crc32(f->v, sizeof(value) * f->n);
-	//printf("%u %u %u\n", crc[0], crc[1]);
+	//printf("%u %u\n", crc[0], crc[1]);
 	return crc32(crc, sizeof(unsigned) * 2);
 }

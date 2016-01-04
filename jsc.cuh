@@ -4,9 +4,6 @@
 #include <cub/cub.cuh>
 #include "types.h"
 
-//#define INPLACE
-#define KERNELERRORCHECK
-
 #ifdef INPLACE
 #include "inplace/inplace/transpose.h"
 #define TRANSPOSEFACTOR 1

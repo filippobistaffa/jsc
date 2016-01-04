@@ -3,9 +3,17 @@
 
 #include <cub/cub.cuh>
 #include "types.h"
-#include "inplace/inplace/transpose.h"
 
+//#define INPLACE
+#define KERNELERRORCHECK
+
+#ifdef INPLACE
+#include "inplace/inplace/transpose.h"
 #define TRANSPOSEFACTOR 1
+#else
+#define TRANSPOSEFACTOR 2
+#endif
+
 #define SHAREDSIZE (44 * 1024)
 #define SHAREDMARGIN 128
 #define CONSTANTSIZE (60 * 1024)

@@ -544,9 +544,9 @@ func jointsum(func *f1, func *f2) {
 		cub::DeviceScan::InclusiveSum(ts, tsn, hpd + pfxhi[r], pfxhpd, hi[r]);
 		cudaFree(ts);
 
-		value *v1d, *v2d, *v3d;
-		chunk *d1d, *d2d, *d3d;
-		// chunk *d1t, *d2t, *d3t;
+		value *v1d, *v2d, *v3d; // function values
+		chunk *d1d, *d2d, *d3d; // original matrices
+		chunk *d1t, *d2t, *d3t; // transposed matrices
 
 		register const dim f1nr = (r == runs - 1 ? f1->n : pfxh1[pfxhi[r + 1]]) - pfxh1[pfxhi[r]];
 		register const dim f2nr = (r == runs - 1 ? f2->n : pfxh2[pfxhi[r + 1]]) - pfxh2[pfxhi[r]];
@@ -563,41 +563,52 @@ func jointsum(func *f1, func *f2) {
 
 		cudaMalloc(&d1d, sizeof(chunk) * f1nr * f1->c);
 		cudaMemcpy(d1d, DATA(f1, pfxh1[pfxhi[r]]), sizeof(chunk) * f1nr * f1->c, cudaMemcpyHostToDevice);
-		//cudaMalloc(&d1t, sizeof(chunk) * f1nr * f1->c);
-		//dim3 grid1(CEIL(f1nr, BLOCK_DIM), CEIL(f1->c, BLOCK_DIM), 1);
-		//dim3 threads(BLOCK_DIM, BLOCK_DIM, 1);
-		//transpose<<<grid1,threads>>>(d1t, d1d, f1->c, f1nr);
-		//printf("%u %u\n", f1->c, f1nr);
+
+		#ifndef INPLACE
+		dim3 threads(BLOCK_DIM, BLOCK_DIM, 1);
+		#endif
 
 		if (f1->c > 1 && f1nr > 1) {
-			TIMER_START(GREEN("Transposing First Matrix..."));
+			#ifdef INPLACE
+			TIMER_START(GREEN("Transposing First Matrix Inplace..."));
 			inplace::transpose(1, (double *)d1d, f1nr, f1->c);
-			//cudaFree(d1d);
+			d1t = d1d;
+			#else
+			TIMER_START(GREEN("Transposing First Matrix..."));
+			cudaMalloc(&d1t, sizeof(chunk) * f1nr * f1->c);
+			dim3 grid1(CEIL(f1nr, BLOCK_DIM), CEIL(f1->c, BLOCK_DIM), 1);
+			transpose<<<grid1,threads>>>(d1t, d1d, f1->c, f1nr);
+			cudaFree(d1d);
+			#endif
 			TIMER_STOP;
-		}
+		} else d1t = d1d;
 
 		cudaMalloc(&d2d, sizeof(chunk) * f2nr * f2->c);
 		cudaMemcpy(d2d, DATA(f2, pfxh2[pfxhi[r]]), sizeof(chunk) * f2nr * f2->c, cudaMemcpyHostToDevice);
-		//cudaMalloc(&d2t, sizeof(chunk) * f2nr * f2->c);
-		//dim3 grid2(CEIL(f2nr, BLOCK_DIM), CEIL(f2->c, BLOCK_DIM), 2);
-		//transpose<<<grid2,threads>>>(d2t, d2d, f2->c, f2nr);
-		//printf("%u %u\n", f2->c, f2nr);
 
 		if (f2->c > 1 && f2nr > 1) {
-			TIMER_START(GREEN("Transposing Second Matrix..."));
+			#ifdef INPLACE
+			TIMER_START(GREEN("Transposing Second Matrix Inplace..."));
 			inplace::transpose(1, (double *)d2d, f2nr, f2->c);
-			//cudaFree(d2d);
+			d2t = d2d;
+			#else
+			TIMER_START(GREEN("Transposing Second Matrix..."));
+			cudaMalloc(&d2t, sizeof(chunk) * f2nr * f2->c);
+			dim3 grid2(CEIL(f2nr, BLOCK_DIM), CEIL(f2->c, BLOCK_DIM), 1);
+			transpose<<<grid2,threads>>>(d2t, d2d, f2->c, f2nr);
+			cudaFree(d2d);
+			#endif
 			TIMER_STOP;
-		}
+		} else d2t = d2d;
 
-		cudaMalloc(&d3d, sizeof(chunk) * f3nr * f3.c);
+		cudaMalloc(&d3t, sizeof(chunk) * f3nr * f3.c);
 		cudaMalloc(&v3d, sizeof(value) * f3nr);
 
 		TIMER_START(GREEN("Joint sum..."));
-		jointsumkernel<<<bn, THREADSPERBLOCK>>>(*f1, *f2, f3, d1d, d2d, d3d, v1d, v2d, v3d, f1nr, f2nr, f3nr, pfxh1d, pfxh2d, pfxhpd, bd);
+		jointsumkernel<<<bn, THREADSPERBLOCK>>>(*f1, *f2, f3, d1t, d2t, d3t, v1d, v2d, v3d, f1nr, f2nr, f3nr, pfxh1d, pfxh2d, pfxhpd, bd);
 		GPUERRORCHECK;
-		//cudaFree(d1t);
-		//cudaFree(d2t);
+		cudaFree(d1t);
+		cudaFree(d2t);
 		cudaFree(v1d);
 		cudaFree(v2d);
 		TIMER_STOP;
@@ -605,17 +616,21 @@ func jointsum(func *f1, func *f2) {
 		cudaMemcpy(f3.v + pfxhp[pfxhi[r]], v3d, sizeof(value) * f3nr, cudaMemcpyDeviceToHost);
 		cudaFree(v3d);
 		cudaFree(bd);
-		//printf("%u %u\n", f3.c, f3nr);
 
 		if (f3.c > 1 && f3nr > 1) {
+			#ifdef INPLACE
+			TIMER_START(GREEN("Transposing Result Inplace..."));
+			inplace::transpose(0, (double *)d3t, f3nr, f3.c);
+			d3d = d3t;
+			#else
 			TIMER_START(GREEN("Transposing Result..."));
-			inplace::transpose(0, (double *)d3d, f3nr, f3.c);
-			//cudaMalloc(&d3d, sizeof(chunk) * f3nr * f3.c);
-			//dim3 grid3(CEIL(f3nr, BLOCK_DIM), CEIL(f3.c, BLOCK_DIM), 1);
-			//transposeback<<<grid3,threads>>>(d3d, d3t, f3nr, f3.c);
-			//cudaFree(d3t);
+			cudaMalloc(&d3d, sizeof(chunk) * f3nr * f3.c);
+			dim3 grid3(CEIL(f3nr, BLOCK_DIM), CEIL(f3.c, BLOCK_DIM), 1);
+			transposeback<<<grid3,threads>>>(d3d, d3t, f3nr, f3.c);
+			cudaFree(d3t);
+			#endif
 		        TIMER_STOP;
-		}
+		} else d3d = d3t;
 
 		cudaMemcpy(DATA(&f3, pfxhp[pfxhi[r]]), d3d, sizeof(chunk) * f3nr * f3.c, cudaMemcpyDeviceToHost);
 		cudaFree(d3d);

@@ -17,7 +17,7 @@
 #include "../cucop/params.h"
 #endif
 
-#define JOINTOPERATION(res, x, y) ((res) = (x) + (y))
+#define JOINOPERATION(res, x, y) ((res) = (x) + (y))
 
 #ifdef PRINTTIME
 #define TIMER_START(msg) do { printf(msg " "); fflush(stdout); gettimeofday(&t1, NULL); } while (0)

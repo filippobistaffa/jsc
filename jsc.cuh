@@ -20,7 +20,7 @@
 			    (sizeof(chunk) * f2->c + sizeof(value)) * (R2) + \
                    	    RESULTDATA(R3) + sizeof(value) * (R3) + sizeof(dim) * 3)
 #define SPEEDUP 100
-#define HNTHRESHOLD 10
+#define THRESHOLD 10
 
 #define gpuerrorcheck(ans) { gpuassert((ans), __FILE__, __LINE__); }
 inline void gpuassert(cudaError_t code, const char *file, int line, bool abort = true) {

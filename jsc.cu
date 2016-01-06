@@ -7,8 +7,7 @@ static double at = 0;
 
 __attribute__((always_inline)) inline
 void joinsumhost(const func *f1, const func *f2, const func *f3,
-		 const dim *h1, const dim *h2, const dim *hp,
-		 const dim *pfxh1, const dim *pfxh2, const dim *pfxhp, dim hn) {
+		 const dim *h1, const dim *hp, const dim *pfxh1, const dim *pfxh2, const dim *pfxhp, dim hn) {
 
 	register const dim dm1 = DIVBPC(f1->m);
 	register const dim mm1 = MODBPC(f1->m);
@@ -691,7 +690,7 @@ func joinsum(func *f1, func *f2) {
 
 	} else {
 		TIMER_START(YELLOW("Join sum..."));
-		joinsumhost(f1, f2, &f3, f1->h, f2->h, hp, pfxh1, pfxh2, pfxhp, hn);
+		joinsumhost(f1, f2, &f3, f1->h, hp, pfxh1, pfxh2, pfxhp, hn);
 		TIMER_STOP;
 		ADDTIME_STOP;
 	}

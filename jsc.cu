@@ -5,8 +5,9 @@
 static struct timeval t1a, t2a;
 static double at = 0;
 
+__attribute__((always_inline)) inline
 void joinsumhost(const func *f1, const func *f2, const func *f3,
-		 const dim *h1, const dim *h2, const dim *hp, 
+		 const dim *h1, const dim *h2, const dim *hp,
 		 const dim *pfxh1, const dim *pfxh2, const dim *pfxhp, dim hn) {
 
 	register const dim dm1 = DIVBPC(f1->m);
@@ -44,7 +45,7 @@ void joinsumhost(const func *f1, const func *f2, const func *f3,
 			}
 		}
 	}
-} 
+}
 
 #ifdef __CUDACC__
 

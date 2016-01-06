@@ -27,7 +27,7 @@ void joinsumhost(const func *f1, const func *f2, const func *f3,
 			register const dim r1 = pfxh1b + t % h1b;
 			register const dim r2 = pfxh2b + t / h1b;
 			register const dim r3 = pfxhpb + t;
-			f3->v[r3] = f1->v[r1] + f2->v[r2];
+			JOINOPERATION(f3->v[r3], f1->v[r1], f2->v[r2]);
 			memcpy(DATA(f3, r3), DATA(f1, r1), sizeof(chunk) * dm1);
 			chunk d = mm1 ? DATA(f1, r1)[f1->c - 1] : 0;
 

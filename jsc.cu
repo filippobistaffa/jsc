@@ -49,7 +49,9 @@ void joinsumhost(const func *f1, const func *f2, const func *f3,
 
 #ifdef __CUDACC__
 
+#ifndef INPLACE
 #include "transpose_kernel.cu"
+#endif
 
 //__constant__ uint4 bdc[CONSTANTSIZE / sizeof(uint4)];
 

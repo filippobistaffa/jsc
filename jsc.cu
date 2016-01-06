@@ -22,6 +22,7 @@ void joinsumhost(const func *f1, const func *f2, const func *f3,
 		register const dim pfxh2b = pfxh2[b];
 		register const dim pfxhpb = pfxhp[b];
 
+		#pragma omp parallel for
 		for (dim t = 0; t < hpb; t++) {
 
 			register const dim r1 = pfxh1b + t % h1b;

@@ -11,6 +11,9 @@
 #define MIN(X, Y) ((X) < (Y) ? (X) : (Y))
 #endif
 
+#define LT(_a, _b) (*(_a)) < (*(_b))
+#define LE(_a, _b) (*(_a)) <= (*(_b))
+
 #define DIVBPC(X) ((X) / BITSPERCHUNK)
 #define MODBPC(X) ((X) % BITSPERCHUNK)
 #define CEILBPC(X) CEIL(X, BITSPERCHUNK)

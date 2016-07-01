@@ -1,0 +1,3 @@
+[submodule "inplace"]
+	path = inplace
+	url = git@github.com:bryancatanzaro/inplace.git

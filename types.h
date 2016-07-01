@@ -7,6 +7,7 @@ typedef uint16_t id;
 #define MAXID USHRT_MAX
 typedef float value;
 #define MAXVALUE FLT_MAX
+#define VALUEFORMAT "%f"
 
 typedef uint64_t chunk;
 #define BITSPERCHUNK 64

@@ -47,8 +47,8 @@
 
 #include "rowmajor.cpp"
 #ifdef __CUDACC__ // CUDA
-#include "sort.cpp"
 #include "jsc.cuh"
+#include "sort.cpp"
 #include "jsc.cu"
 #endif
 

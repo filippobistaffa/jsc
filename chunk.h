@@ -1,7 +1,7 @@
 #ifndef CHUNK_H_
 #define CHUNK_H_
 
-#define MAXCHUNK 500
+#define MAXCHUNK 4
 
 typedef chunk chunk1;
 typedef struct chunk2 { chunk x[2]; } chunk2;

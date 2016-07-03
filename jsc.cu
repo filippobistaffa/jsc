@@ -476,7 +476,6 @@ func joinsum(func *f1, func *f2) {
 
 	if (!hn) {
 		printf("Not satisfiable\n");
-		printf("Time = %f\n", at - at / SPEEDUP);
 		exit(0);
 	}
 

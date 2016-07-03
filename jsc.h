@@ -14,7 +14,7 @@
 #include <sys/time.h>
 
 #ifndef JSCMAIN
-#include "../cucop/params.h"
+#include "../params.h"
 #endif
 
 #define JOINOPERATION(res, x, y) ((res) = (x) + (y))

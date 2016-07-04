@@ -485,18 +485,17 @@ func joinsum(func *f1, func *f2) {
 	dim *h1d, *h2d, *hpd, *pfxh1d, *pfxh2d, *pfxhpd, *f3n;
 	void *ts = NULL;
 	size_t tsn = 0;
-
-	cudaMalloc(&h1d, sizeof(dim) * hn);
-	cudaMalloc(&h2d, sizeof(dim) * hn);
-	cudaMalloc(&hpd, sizeof(dim) * hn);
-	cudaMalloc(&pfxh1d, sizeof(dim) * hn);
-	cudaMalloc(&pfxh2d, sizeof(dim) * hn);
-	cudaMalloc(&pfxhpd, sizeof(dim) * hn);
-	cudaMemcpy(h1d, f1->h, sizeof(dim) * hn, cudaMemcpyHostToDevice);
-	cudaMemcpy(h2d, f2->h, sizeof(dim) * hn, cudaMemcpyHostToDevice);
 	dim *hp = (dim *)malloc(sizeof(dim) * hn);
 
 	if (hn > THRESHOLD) {
+		cudaMalloc(&h1d, sizeof(dim) * hn);
+		cudaMalloc(&h2d, sizeof(dim) * hn);
+		cudaMalloc(&hpd, sizeof(dim) * hn);
+		cudaMalloc(&pfxh1d, sizeof(dim) * hn);
+		cudaMalloc(&pfxh2d, sizeof(dim) * hn);
+		cudaMalloc(&pfxhpd, sizeof(dim) * hn);
+		cudaMemcpy(h1d, f1->h, sizeof(dim) * hn, cudaMemcpyHostToDevice);
+		cudaMemcpy(h2d, f2->h, sizeof(dim) * hn, cudaMemcpyHostToDevice);
 		histogramproductkernel<<<CEIL(hn, THREADSPERBLOCK), THREADSPERBLOCK>>>(h1d, h2d, hpd, hn);
 		cudaMemcpy(hp, hpd, sizeof(dim) * hn, cudaMemcpyDeviceToHost);
 		GPUERRORCHECK;
@@ -507,7 +506,6 @@ func joinsum(func *f1, func *f2) {
 		cudaMemcpy(&f3.n, f3n, sizeof(dim), cudaMemcpyDeviceToHost);
 	} else {
 		bufproduct(f1->h, f2->h, hp, hn);
-		cudaMemcpy(hpd, hp, sizeof(dim) * hn, cudaMemcpyHostToDevice);
 		f3.n = sumreduce(hp, hn);
 	}
 

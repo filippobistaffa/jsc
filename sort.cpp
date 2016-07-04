@@ -8,8 +8,8 @@
 static struct timeval t1, t2;
 #endif
 
-//#define NATIVESORT(F, I) (cubsort<chunk,I>(F))
-#define NATIVESORT(F, I) (templatesort<chunk,I>(F))
+#define NATIVESORT(F, I) (cubsort<chunk,I>(F))
+//#define NATIVESORT(F, I) (templatesort<chunk,I>(F))
 
 using namespace cub;
 CachingDeviceAllocator g_allocator(true);
